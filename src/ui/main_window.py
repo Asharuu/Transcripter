@@ -96,116 +96,157 @@ class MainWindow(QMainWindow):
     def _init_ui(self):
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #0b0f19;
+                background-color: #0b0e0c;
             }
             QWidget {
-                color: #f1f5f9;
-                font-family: 'Segoe UI', sans-serif;
+                color: #e0f2e5;
+                font-family: 'Segoe UI', 'JetBrains Mono', sans-serif;
             }
             QSplitter::handle {
-                background-color: #1e293b;
+                background-color: #1a221d;
                 width: 1px;
             }
             QListWidget {
-                background-color: #0f172a;
-                border: none;
-                padding: 6px;
+                background-color: #0d120f;
+                border: 1px solid #1a221d;
+                border-radius: 4px;
+                padding: 4px;
+                outline: 0;
             }
             QListWidget::item {
-                padding: 10px 12px;
-                border-radius: 6px;
-                margin-bottom: 4px;
-                color: #cbd5e1;
+                padding: 8px 10px;
+                border-radius: 3px;
+                margin-bottom: 3px;
+                color: #8fad96;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 11px;
+                border: 1px solid transparent;
             }
             QListWidget::item:hover {
-                background-color: #1e293b;
-                color: #ffffff;
+                background-color: #141c16;
+                color: #34d399;
+                border: 1px solid #1f3326;
             }
             QListWidget::item:selected {
-                background-color: #2563eb;
-                color: #ffffff;
-                font-weight: bold;
+                background-color: #0f2619;
+                color: #34d399;
+                border: 1px solid #10b981;
+                font-weight: 700;
             }
             QPushButton {
-                background-color: #1e293b;
-                color: #f8fafc;
-                border: 1px solid #334155;
-                border-radius: 6px;
-                padding: 8px 14px;
+                background-color: #131915;
+                color: #e0f2e5;
+                border: 1px solid #212c25;
+                border-radius: 4px;
+                padding: 7px 14px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 12px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #334155;
+                background-color: #19221c;
+                border-color: #385242;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #0d1410;
             }
             QPushButton#primaryAction {
-                background-color: #2563eb;
-                border: none;
-                color: #ffffff;
-                font-size: 13px;
+                background-color: #10b981;
+                color: #041a0e;
+                border: 1px solid #34d399;
+                font-weight: 700;
             }
             QPushButton#primaryAction:hover {
-                background-color: #1d4ed8;
-            }
-            QPushButton#stopAction {
-                background-color: #dc2626;
-                border: none;
-                color: #ffffff;
-                font-size: 13px;
-            }
-            QPushButton#stopAction:hover {
-                background-color: #b91c1c;
+                background-color: #34d399;
+                color: #041a0e;
+                border-color: #6ee7b7;
             }
             QPushButton#pauseAction {
-                background-color: #d97706;
-                border: none;
-                color: #ffffff;
-                font-size: 13px;
+                background-color: #f59e0b;
+                color: #1f1404;
+                border: 1px solid #fbbf24;
+                font-weight: 700;
             }
             QPushButton#pauseAction:hover {
-                background-color: #b45309;
+                background-color: #fbbf24;
+                color: #1f1404;
+                border-color: #fde68a;
             }
             QPushButton#endAction {
                 background-color: #dc2626;
-                border: none;
                 color: #ffffff;
-                font-size: 13px;
+                border: 1px solid #ef4444;
+                font-weight: 700;
             }
             QPushButton#endAction:hover {
-                background-color: #b91c1c;
+                background-color: #ef4444;
+                color: #ffffff;
+                border-color: #f87171;
             }
             QLineEdit {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 6px;
-                padding: 8px 12px;
-                color: #f8fafc;
-                font-size: 13px;
+                background-color: #101612;
+                border: 1px solid #212c25;
+                border-radius: 4px;
+                padding: 7px 12px;
+                color: #e0f2e5;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                background-color: #0b0e0c;
+                border: 1px solid #10b981;
+                color: #ffffff;
             }
             QCheckBox {
                 spacing: 8px;
-                font-size: 12px;
-                color: #94a3b8;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 11px;
+                color: #8fad96;
+            }
+            QCheckBox:hover {
+                color: #e0f2e5;
             }
             QCheckBox::indicator {
-                width: 16px;
-                height: 16px;
-                border-radius: 4px;
-                border: 1px solid #475569;
-                background-color: #1e293b;
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                border: 1px solid #28372e;
+                background-color: #101612;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #10b981;
             }
             QCheckBox::indicator:checked {
-                background-color: #2563eb;
-                border-color: #3b82f6;
+                background-color: #10b981;
+                border-color: #34d399;
             }
             QProgressBar {
-                background-color: #1e293b;
-                border: none;
+                background-color: #101612;
+                border: 1px solid #212c25;
                 border-radius: 3px;
-                height: 6px;
+                height: 8px;
             }
             QProgressBar::chunk {
                 background-color: #10b981;
+                border-radius: 2px;
+            }
+            QScrollBar:vertical {
+                background-color: #0b0e0c;
+                width: 7px;
+                margin: 0px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #212c25;
+                min-height: 24px;
                 border-radius: 3px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #10b981;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
             }
         """)
 
@@ -221,7 +262,7 @@ class MainWindow(QMainWindow):
         self.sidebar = QWidget()
         self.sidebar.setMinimumWidth(220)
         self.sidebar.setMaximumWidth(280)
-        self.sidebar.setStyleSheet("background-color: #0f172a; border-right: 1px solid #1e293b;")
+        self.sidebar.setStyleSheet("background-color: #0e1310; border-right: 1px solid #1a221d;")
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(14, 16, 14, 16)
         sidebar_layout.setSpacing(12)
@@ -231,9 +272,17 @@ class MainWindow(QMainWindow):
         brand_layout.setContentsMargins(0, 0, 0, 0)
         brand_layout.setSpacing(6)
 
-        brand_label = QLabel("Transcripter")
-        brand_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        brand_label.setStyleSheet("color: #38bdf8;")
+        brand_label = QLabel("TRANCRIPTER // LAB")
+        brand_label.setFont(QFont("JetBrains Mono", 12, QFont.Bold))
+        brand_label.setStyleSheet("""
+            QLabel {
+                color: #10b981;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+            }
+        """)
         brand_layout.addWidget(brand_label)
         brand_layout.addStretch()
 
@@ -241,17 +290,18 @@ class MainWindow(QMainWindow):
         self.is_sidebar_pinned = True
         self.btn_pin_sidebar = QPushButton("📌")
         self.btn_pin_sidebar.setToolTip("Pin / Unpin Sidebar")
-        self.btn_pin_sidebar.setFixedSize(30, 30)
+        self.btn_pin_sidebar.setFixedSize(28, 28)
         self.btn_pin_sidebar.setStyleSheet("""
             QPushButton {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 6px;
+                background-color: #0f2619;
+                border: 1px solid #10b981;
+                border-radius: 3px;
                 padding: 0;
-                font-size: 13px;
+                font-size: 12px;
+                color: #34d399;
             }
             QPushButton:hover {
-                background-color: #334155;
+                background-color: #133322;
             }
         """)
         self.btn_pin_sidebar.clicked.connect(self._toggle_pin_sidebar)
@@ -260,17 +310,20 @@ class MainWindow(QMainWindow):
         # Collapse Sidebar Button (◀ / ≡)
         self.btn_collapse_sidebar = QPushButton("◀")
         self.btn_collapse_sidebar.setToolTip("Tutup / Collapse Sidebar")
-        self.btn_collapse_sidebar.setFixedSize(30, 30)
+        self.btn_collapse_sidebar.setFixedSize(28, 28)
         self.btn_collapse_sidebar.setStyleSheet("""
             QPushButton {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 6px;
+                background-color: #131915;
+                border: 1px solid #212c25;
+                border-radius: 3px;
                 padding: 0;
                 font-size: 11px;
+                color: #8fad96;
             }
             QPushButton:hover {
-                background-color: #334155;
+                background-color: #19221c;
+                border-color: #10b981;
+                color: #10b981;
             }
         """)
         self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
@@ -279,15 +332,15 @@ class MainWindow(QMainWindow):
         sidebar_layout.addLayout(brand_layout)
 
         # + New Session Button
-        self.btn_new = QPushButton("+ New Session")
+        self.btn_new = QPushButton("+ NEW SESSION")
         self.btn_new.setObjectName("primaryAction")
         self.btn_new.clicked.connect(self._new_session)
         sidebar_layout.addWidget(self.btn_new)
 
         # Recent Sessions Header
-        recent_label = QLabel("Recent Sessions")
-        recent_label.setFont(QFont("Segoe UI", 11, QFont.DemiBold))
-        recent_label.setStyleSheet("color: #94a3b8; margin-top: 8px;")
+        recent_label = QLabel("RECENT SESSIONS")
+        recent_label.setFont(QFont("JetBrains Mono", 10, QFont.Bold))
+        recent_label.setStyleSheet("color: #55735f; margin-top: 8px; letter-spacing: 0.5px; font-family: 'JetBrains Mono', monospace;")
         sidebar_layout.addWidget(recent_label)
 
         # Sessions List
@@ -296,7 +349,7 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(self.session_list)
 
         # Settings button at bottom of sidebar
-        self.btn_settings = QPushButton("⚙ Settings")
+        self.btn_settings = QPushButton("⚙ SETTINGS")
         self.btn_settings.clicked.connect(self._open_settings)
         sidebar_layout.addWidget(self.btn_settings)
 
@@ -304,7 +357,7 @@ class MainWindow(QMainWindow):
 
         # ----------------- RIGHT WORKSPACE -----------------
         workspace = QWidget()
-        workspace.setStyleSheet("background-color: #0b0f19;")
+        workspace.setStyleSheet("background-color: #0b0e0c;")
         ws_layout = QVBoxLayout(workspace)
         ws_layout.setContentsMargins(20, 16, 20, 16)
         ws_layout.setSpacing(14)
@@ -315,17 +368,20 @@ class MainWindow(QMainWindow):
         # Workspace Toggle Sidebar Button (visible when sidebar is closed)
         self.btn_open_sidebar = QPushButton("☰")
         self.btn_open_sidebar.setToolTip("Buka / Expand Sidebar")
-        self.btn_open_sidebar.setFixedSize(32, 32)
+        self.btn_open_sidebar.setFixedSize(30, 30)
         self.btn_open_sidebar.setStyleSheet("""
             QPushButton {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 6px;
+                background-color: #131915;
+                border: 1px solid #212c25;
+                border-radius: 3px;
                 padding: 0;
-                font-size: 14px;
+                font-size: 13px;
+                color: #8fad96;
             }
             QPushButton:hover {
-                background-color: #334155;
+                background-color: #19221c;
+                border-color: #10b981;
+                color: #10b981;
             }
         """)
         self.btn_open_sidebar.clicked.connect(self._toggle_sidebar)
@@ -334,29 +390,40 @@ class MainWindow(QMainWindow):
 
         # Session Title Editor
         self.title_input = QLineEdit("Untitled Session")
-        self.title_input.setPlaceholderText("Enter session title (e.g. Dasar OOP)...")
+        self.title_input.setPlaceholderText("Enter session title (e.g. System Architecture Review)...")
         self.title_input.setMinimumWidth(260)
         top_bar.addWidget(self.title_input)
 
         top_bar.addSpacing(15)
 
-        # Audio source checkboxes
-        self.chk_system = QCheckBox("System Audio")
+        # Audio source checkboxes with Audiophile labels
+        self.chk_system = QCheckBox("CH-02 [System]")
         self.chk_system.setChecked(self.config.system_audio_enabled)
         self.chk_system.toggled.connect(self._on_source_toggled)
         top_bar.addWidget(self.chk_system)
 
-        self.chk_mic = QCheckBox("Microphone")
+        self.chk_mic = QCheckBox("CH-01 [Mic]")
         self.chk_mic.setChecked(self.config.microphone_enabled)
         self.chk_mic.toggled.connect(self._on_source_toggled)
         top_bar.addWidget(self.chk_mic)
 
         top_bar.addStretch()
 
-        # Timer Badge
+        # Timer Readout
         self.timer_label = QLabel("00:00")
-        self.timer_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        self.timer_label.setStyleSheet("color: #94a3b8; padding: 4px 8px;")
+        self.timer_label.setFont(QFont("JetBrains Mono", 13, QFont.Bold))
+        self.timer_label.setStyleSheet("""
+            QLabel {
+                color: #e0f2e5;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 13px;
+                font-weight: 700;
+                background-color: #101612;
+                border: 1px solid #212c25;
+                border-radius: 3px;
+                padding: 4px 10px;
+            }
+        """)
         top_bar.addWidget(self.timer_label)
 
         # Controls layout: Start/Pause/Resume & End Session
@@ -379,15 +446,17 @@ class MainWindow(QMainWindow):
         # Status row: VU meter & quick export buttons
         status_row = QHBoxLayout()
 
-        # Recording state badge
+        # Recording state badge (Monospace instrument panel telemetry)
         self.state_badge = QLabel("READY")
         self.state_badge.setStyleSheet("""
-            background-color: #1e293b;
-            color: #94a3b8;
-            font-size: 11px;
-            font-weight: bold;
+            background-color: #131915;
+            color: #8fad96;
+            border: 1px solid #212c25;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 10px;
+            font-weight: 700;
             padding: 3px 8px;
-            border-radius: 4px;
+            border-radius: 3px;
         """)
         status_row.addWidget(self.state_badge)
 
@@ -401,7 +470,7 @@ class MainWindow(QMainWindow):
 
         # Status text
         self.status_text = QLabel("Press START to begin listening")
-        self.status_text.setStyleSheet("color: #64748b; font-size: 12px;")
+        self.status_text.setStyleSheet("color: #55735f; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px;")
         status_row.addWidget(self.status_text)
 
         status_row.addStretch()
@@ -502,7 +571,16 @@ class MainWindow(QMainWindow):
         self.btn_end.setVisible(True)
 
         self.state_badge.setText("● RECORDING")
-        self.state_badge.setStyleSheet("background-color: #991b1b; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+        self.state_badge.setStyleSheet("""
+            background-color: #290d0d;
+            color: #fca5a5;
+            border: 1px solid #dc2626;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 3px;
+        """)
         self.status_text.setText("Listening & buffering speech...")
         self.chk_system.setEnabled(False)
         self.chk_mic.setEnabled(False)
@@ -547,7 +625,16 @@ class MainWindow(QMainWindow):
         self.btn_end.setVisible(True)
 
         self.state_badge.setText("⏸ PAUSED")
-        self.state_badge.setStyleSheet("background-color: #d97706; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+        self.state_badge.setStyleSheet("""
+            background-color: #261704;
+            color: #fde68a;
+            border: 1px solid #d97706;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 3px;
+        """)
         self.status_text.setText("Session paused. Click RESUME to continue or END to finish & save.")
         self.vu_meter.setValue(0)
 
@@ -604,7 +691,16 @@ class MainWindow(QMainWindow):
         self.btn_end.setVisible(True)
 
         self.state_badge.setText("● RECORDING")
-        self.state_badge.setStyleSheet("background-color: #991b1b; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+        self.state_badge.setStyleSheet("""
+            background-color: #290d0d;
+            color: #fca5a5;
+            border: 1px solid #dc2626;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 3px;
+        """)
         self.status_text.setText("Recording resumed. Listening & buffering speech...")
         self.timer.start(1000)
 
@@ -670,7 +766,16 @@ class MainWindow(QMainWindow):
         self.btn_end.setVisible(False)
 
         self.state_badge.setText("READY")
-        self.state_badge.setStyleSheet("background-color: #1e293b; color: #94a3b8; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+        self.state_badge.setStyleSheet("""
+            background-color: #131915;
+            color: #8fad96;
+            border: 1px solid #212c25;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 3px;
+        """)
 
         if saved_title:
             self.status_text.setText(f"Session '{saved_title}' saved! New session ready. Press START.")
@@ -783,14 +888,15 @@ class MainWindow(QMainWindow):
             self.btn_pin_sidebar.setText("📌")
             self.btn_pin_sidebar.setStyleSheet("""
                 QPushButton {
-                    background-color: #2563eb;
-                    border: 1px solid #3b82f6;
-                    border-radius: 6px;
+                    background-color: #0f2619;
+                    border: 1px solid #10b981;
+                    border-radius: 3px;
                     padding: 0;
-                    font-size: 13px;
+                    font-size: 12px;
+                    color: #34d399;
                 }
                 QPushButton:hover {
-                    background-color: #1d4ed8;
+                    background-color: #133322;
                 }
             """)
             self.btn_pin_sidebar.setToolTip("Sidebar is pinned (Always Open)")
@@ -798,14 +904,17 @@ class MainWindow(QMainWindow):
             self.btn_pin_sidebar.setText("📍")
             self.btn_pin_sidebar.setStyleSheet("""
                 QPushButton {
-                    background-color: #1e293b;
-                    border: 1px solid #334155;
-                    border-radius: 6px;
+                    background-color: #131915;
+                    border: 1px solid #212c25;
+                    border-radius: 3px;
                     padding: 0;
-                    font-size: 13px;
+                    font-size: 12px;
+                    color: #8fad96;
                 }
                 QPushButton:hover {
-                    background-color: #334155;
+                    background-color: #19221c;
+                    border-color: #10b981;
+                    color: #10b981;
                 }
             """)
             self.btn_pin_sidebar.setToolTip("Sidebar is unpinned (Click to pin)")
@@ -860,7 +969,10 @@ class MainWindow(QMainWindow):
         self.session_list.clear()
         sessions = self.session_manager.list_sessions()
         for s in sessions[:20]:
-            item = QListWidgetItem(f"{s.title}")
+            mins, secs = divmod(int(s.duration_seconds), 60)
+            hours, mins = divmod(mins, 60)
+            dur_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
+            item = QListWidgetItem(f"{s.title}  [{dur_str}]")
             item.setData(Qt.UserRole, s.id)
             self.session_list.addItem(item)
 

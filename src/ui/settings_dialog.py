@@ -29,61 +29,112 @@ class SettingsDialog(QDialog):
     def __init__(self, config: AppConfig, parent=None):
         super().__init__(parent)
         self.config = config
-        self.setWindowTitle("Settings — Transcripter")
-        self.setMinimumWidth(520)
+        self.setWindowTitle("Settings — Transcripter // Audio Lab")
+        self.setMinimumWidth(540)
         self.setStyleSheet("""
             QDialog {
-                background-color: #0f172a;
-                color: #f8fafc;
+                background-color: #0b0e0c;
+                color: #e0f2e5;
             }
             QGroupBox {
-                border: 1px solid #334155;
-                border-radius: 6px;
-                margin-top: 12px;
+                border: 1px solid #1f2d24;
+                border-radius: 4px;
+                margin-top: 14px;
                 padding-top: 16px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
                 font-weight: bold;
-                color: #38bdf8;
+                font-size: 11px;
+                color: #10b981;
+                letter-spacing: 0.5px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 10px;
-                padding: 0 5px;
+                padding: 0 6px;
+                background-color: #0b0e0c;
             }
             QLabel {
-                color: #cbd5e1;
+                color: #8fad96;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 11px;
             }
             QLineEdit, QComboBox, QDoubleSpinBox {
-                background-color: #1e293b;
-                border: 1px solid #475569;
+                background-color: #101612;
+                border: 1px solid #212c25;
                 border-radius: 4px;
                 padding: 6px 10px;
-                color: #f8fafc;
+                color: #e0f2e5;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 12px;
             }
             QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus {
-                border: 1px solid #38bdf8;
+                border: 1px solid #10b981;
+                background-color: #0c120e;
+                color: #ffffff;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #101612;
+                color: #e0f2e5;
+                selection-background-color: #0f2619;
+                selection-color: #34d399;
+                border: 1px solid #212c25;
+                outline: 0;
             }
             QPushButton {
-                background-color: #2563eb;
-                color: #ffffff;
-                border: none;
+                background-color: #10b981;
+                color: #041a0e;
+                border: 1px solid #34d399;
                 border-radius: 4px;
                 padding: 7px 16px;
-                font-weight: bold;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-weight: 700;
+                font-size: 11px;
             }
             QPushButton:hover {
-                background-color: #1d4ed8;
+                background-color: #34d399;
+                border-color: #6ee7b7;
             }
             QPushButton#dangerBtn {
-                background-color: #dc2626;
+                background-color: #290d0d;
+                color: #fca5a5;
+                border: 1px solid #dc2626;
             }
             QPushButton#dangerBtn:hover {
-                background-color: #b91c1c;
+                background-color: #dc2626;
+                color: #ffffff;
             }
             QPushButton#secondaryBtn {
-                background-color: #334155;
+                background-color: #131915;
+                color: #e0f2e5;
+                border: 1px solid #212c25;
             }
             QPushButton#secondaryBtn:hover {
-                background-color: #475569;
+                background-color: #19221c;
+                border-color: #385242;
+                color: #34d399;
+            }
+            QCheckBox {
+                spacing: 8px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 11px;
+                color: #8fad96;
+            }
+            QCheckBox:hover {
+                color: #e0f2e5;
+            }
+            QCheckBox::indicator {
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                border: 1px solid #28372e;
+                background-color: #101612;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #10b981;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #10b981;
+                border-color: #34d399;
             }
         """)
 
@@ -202,10 +253,10 @@ class SettingsDialog(QDialog):
         if key:
             self.api_key_input.setText(key)
             self.status_label.setText("✓ API key stored in DPAPI")
-            self.status_label.setStyleSheet("color: #4ade80;")
+            self.status_label.setStyleSheet("color: #34d399; font-family: 'JetBrains Mono', monospace;")
         else:
             self.status_label.setText("⚠ No API key configured")
-            self.status_label.setStyleSheet("color: #f87171;")
+            self.status_label.setStyleSheet("color: #f87171; font-family: 'JetBrains Mono', monospace;")
 
         # Populate devices
         adm = AudioDeviceManager()
@@ -245,7 +296,7 @@ class SettingsDialog(QDialog):
             return
 
         self.status_label.setText("Testing connection...")
-        self.status_label.setStyleSheet("color: #38bdf8;")
+        self.status_label.setStyleSheet("color: #fbbf24; font-family: 'JetBrains Mono', monospace;")
         self.btn_test_key.setEnabled(False)
 
         valid, msg = CredentialManager.test_api_key(key)
@@ -253,11 +304,11 @@ class SettingsDialog(QDialog):
 
         if valid:
             self.status_label.setText("✓ Connection Successful!")
-            self.status_label.setStyleSheet("color: #4ade80;")
+            self.status_label.setStyleSheet("color: #34d399; font-family: 'JetBrains Mono', monospace;")
             QMessageBox.information(self, "Success", msg)
         else:
             self.status_label.setText("✕ Connection Failed")
-            self.status_label.setStyleSheet("color: #f87171;")
+            self.status_label.setStyleSheet("color: #f87171; font-family: 'JetBrains Mono', monospace;")
             QMessageBox.critical(self, "Connection Error", msg)
 
     def _delete_key(self):
@@ -270,7 +321,7 @@ class SettingsDialog(QDialog):
             CredentialManager.delete_api_key()
             self.api_key_input.clear()
             self.status_label.setText("⚠ API key removed")
-            self.status_label.setStyleSheet("color: #f87171;")
+            self.status_label.setStyleSheet("color: #f87171; font-family: 'JetBrains Mono', monospace;")
 
     def _save_settings(self):
         # Save API key
