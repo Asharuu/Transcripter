@@ -79,9 +79,10 @@ class MainWindow(QMainWindow):
             silence_threshold_sec=self.config.audio.vad_silence_seconds,
         )
 
-        # Session timing
+        # Session timing & state
         self.is_recording = False
         self.session_start_time = 0.0
+        self.active_session_id: str | None = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_timer)
 
@@ -193,23 +194,67 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Horizontal)
 
         # ----------------- LEFT SIDEBAR -----------------
-        sidebar = QWidget()
-        sidebar.setMinimumWidth(220)
-        sidebar.setMaximumWidth(280)
-        sidebar.setStyleSheet("background-color: #0f172a; border-right: 1px solid #1e293b;")
-        sidebar_layout = QVBoxLayout(sidebar)
+        self.sidebar = QWidget()
+        self.sidebar.setMinimumWidth(220)
+        self.sidebar.setMaximumWidth(280)
+        self.sidebar.setStyleSheet("background-color: #0f172a; border-right: 1px solid #1e293b;")
+        sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(14, 16, 14, 16)
         sidebar_layout.setSpacing(12)
 
-        # App Brand Header
+        # App Brand Header with Pin & Collapse controls
         brand_layout = QHBoxLayout()
+        brand_layout.setContentsMargins(0, 0, 0, 0)
+        brand_layout.setSpacing(6)
+
         brand_label = QLabel("Transcripter")
         brand_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
         brand_label.setStyleSheet("color: #38bdf8;")
         brand_layout.addWidget(brand_label)
+        brand_layout.addStretch()
+
+        # Pin / Unpin Button (📌)
+        self.is_sidebar_pinned = True
+        self.btn_pin_sidebar = QPushButton("📌")
+        self.btn_pin_sidebar.setToolTip("Pin / Unpin Sidebar")
+        self.btn_pin_sidebar.setFixedSize(30, 30)
+        self.btn_pin_sidebar.setStyleSheet("""
+            QPushButton {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 0;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+            }
+        """)
+        self.btn_pin_sidebar.clicked.connect(self._toggle_pin_sidebar)
+        brand_layout.addWidget(self.btn_pin_sidebar)
+
+        # Collapse Sidebar Button (◀ / ≡)
+        self.btn_collapse_sidebar = QPushButton("◀")
+        self.btn_collapse_sidebar.setToolTip("Tutup / Collapse Sidebar")
+        self.btn_collapse_sidebar.setFixedSize(30, 30)
+        self.btn_collapse_sidebar.setStyleSheet("""
+            QPushButton {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 0;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+            }
+        """)
+        self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
+        brand_layout.addWidget(self.btn_collapse_sidebar)
+
         sidebar_layout.addLayout(brand_layout)
 
         # + New Session Button
@@ -234,7 +279,7 @@ class MainWindow(QMainWindow):
         self.btn_settings.clicked.connect(self._open_settings)
         sidebar_layout.addWidget(self.btn_settings)
 
-        splitter.addWidget(sidebar)
+        self.splitter.addWidget(self.sidebar)
 
         # ----------------- RIGHT WORKSPACE -----------------
         workspace = QWidget()
@@ -245,6 +290,26 @@ class MainWindow(QMainWindow):
 
         # Top Bar: Session Title & Audio Controls
         top_bar = QHBoxLayout()
+
+        # Workspace Toggle Sidebar Button (visible when sidebar is closed)
+        self.btn_open_sidebar = QPushButton("☰")
+        self.btn_open_sidebar.setToolTip("Buka / Expand Sidebar")
+        self.btn_open_sidebar.setFixedSize(32, 32)
+        self.btn_open_sidebar.setStyleSheet("""
+            QPushButton {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 0;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+            }
+        """)
+        self.btn_open_sidebar.clicked.connect(self._toggle_sidebar)
+        self.btn_open_sidebar.setVisible(False)
+        top_bar.addWidget(self.btn_open_sidebar)
 
         # Session Title Editor
         self.title_input = QLineEdit("Untitled Session")
@@ -328,9 +393,9 @@ class MainWindow(QMainWindow):
         self.transcript_widget.turn_edited.connect(self._on_turn_edited)
         ws_layout.addWidget(self.transcript_widget, 1)
 
-        splitter.addWidget(workspace)
-        splitter.setSizes([240, 860])
-        main_layout.addWidget(splitter)
+        self.splitter.addWidget(workspace)
+        self.splitter.setSizes([240, 860])
+        main_layout.addWidget(self.splitter)
 
     # ----------------- RECORDING WORKFLOW -----------------
 
@@ -393,6 +458,7 @@ class MainWindow(QMainWindow):
         self.system_segmenter.reset()
         self.is_recording = True
         self.session_start_time = time.time()
+        self.session_duration = 0.0
 
         # UI updates
         self.btn_record.setText("■ STOP")
@@ -410,8 +476,15 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         self.audio_engine.stop()
 
-        # Flush any remaining audio in segmenters
         now = time.time()
+        if self.session_start_time > 0:
+            self.session_duration = max(0.0, now - self.session_start_time)
+            mins, secs = divmod(int(self.session_duration), 60)
+            hours, mins = divmod(mins, 60)
+            dur_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
+            self.timer_label.setText(dur_str)
+
+        # Flush any remaining audio in segmenters
         mic_flush = self.mic_segmenter.flush(now)
         sys_flush = self.system_segmenter.flush(now)
 
@@ -473,11 +546,14 @@ class MainWindow(QMainWindow):
             if self.config.ai_post_processing_enabled:
                 final_text = self.post_processor.process(raw_text)
 
+            rel_start = max(0.0, segment.start_time - self.session_start_time)
+            rel_end = max(rel_start + segment.duration, segment.end_time - self.session_start_time)
+
             self.bridge.segment_transcribed.emit(
                 segment.speaker_label,
                 final_text,
-                segment.start_time - self.session_start_time,
-                segment.end_time - self.session_start_time,
+                rel_start,
+                rel_end,
             )
             self.bridge.status_message.emit("Listening & buffering speech...")
 
@@ -500,6 +576,9 @@ class MainWindow(QMainWindow):
         else:
             self.transcript_widget.add_turn(turn)
 
+        # Update saved session in background to prevent race conditions on stop
+        self._save_current_session()
+
     @Slot(float)
     def _on_audio_level_updated(self, rms: float):
         val = int(rms * 100)
@@ -510,6 +589,57 @@ class MainWindow(QMainWindow):
         self.status_text.setText(msg)
 
     # ----------------- SESSION & EXPORT -----------------
+
+    def _toggle_sidebar(self):
+        """Toggle sidebar collapsed or expanded."""
+        sizes = self.splitter.sizes()
+        if sizes[0] > 0:
+            # Collapse sidebar
+            self._prev_sidebar_width = sizes[0]
+            self.splitter.setSizes([0, sizes[0] + sizes[1]])
+            self.btn_open_sidebar.setVisible(True)
+        else:
+            # Expand sidebar
+            restore_w = getattr(self, "_prev_sidebar_width", 240)
+            if restore_w <= 0:
+                restore_w = 240
+            rem = max(100, sizes[1] - restore_w)
+            self.splitter.setSizes([restore_w, rem])
+            self.btn_open_sidebar.setVisible(False)
+
+    def _toggle_pin_sidebar(self):
+        """Toggle pinned state of the sidebar."""
+        self.is_sidebar_pinned = not self.is_sidebar_pinned
+        if self.is_sidebar_pinned:
+            self.btn_pin_sidebar.setText("📌")
+            self.btn_pin_sidebar.setStyleSheet("""
+                QPushButton {
+                    background-color: #2563eb;
+                    border: 1px solid #3b82f6;
+                    border-radius: 6px;
+                    padding: 0;
+                    font-size: 13px;
+                }
+                QPushButton:hover {
+                    background-color: #1d4ed8;
+                }
+            """)
+            self.btn_pin_sidebar.setToolTip("Sidebar is pinned (Always Open)")
+        else:
+            self.btn_pin_sidebar.setText("📍")
+            self.btn_pin_sidebar.setStyleSheet("""
+                QPushButton {
+                    background-color: #1e293b;
+                    border: 1px solid #334155;
+                    border-radius: 6px;
+                    padding: 0;
+                    font-size: 13px;
+                }
+                QPushButton:hover {
+                    background-color: #334155;
+                }
+            """)
+            self.btn_pin_sidebar.setToolTip("Sidebar is unpinned (Click to pin)")
 
     def _update_timer(self):
         elapsed = time.time() - self.session_start_time
@@ -523,6 +653,7 @@ class MainWindow(QMainWindow):
     def _new_session(self):
         if self.is_recording:
             self._stop_recording()
+        self.active_session_id = None
         self.turn_manager.reset()
         self.transcript_widget.clear()
         self.title_input.setText("Untitled Session")
@@ -532,14 +663,22 @@ class MainWindow(QMainWindow):
     def _save_current_session(self):
         if not self.turn_manager.turns:
             return
-        duration = time.time() - self.session_start_time if self.session_start_time > 0 else 0.0
+
+        if self.is_recording and self.session_start_time > 0:
+            duration = max(0.0, time.time() - self.session_start_time)
+        else:
+            duration = getattr(self, "session_duration", 0.0)
+            if duration <= 0.0 and self.session_start_time > 0:
+                duration = max(0.0, time.time() - self.session_start_time)
+
         title = self.title_input.text().strip() or "Untitled Session"
         dt = datetime.fromtimestamp(self.session_start_time if self.session_start_time > 0 else time.time())
 
         md_content = self.turn_manager.to_markdown(title, dt, duration)
         txt_content = self.turn_manager.to_plain_text(title, dt, duration)
 
-        self.session_manager.create_session(
+        meta = self.session_manager.save_or_update_session(
+            session_id=self.active_session_id,
             title=title,
             duration_seconds=duration,
             system_audio_enabled=self.chk_system.isChecked(),
@@ -547,12 +686,13 @@ class MainWindow(QMainWindow):
             markdown_text=md_content,
             plain_text=txt_content,
         )
+        self.active_session_id = meta.id
         self._load_recent_sessions()
 
     def _load_recent_sessions(self):
         self.session_list.clear()
         sessions = self.session_manager.list_sessions()
-        for s in sessions[:15]:
+        for s in sessions[:20]:
             item = QListWidgetItem(f"{s.title}")
             item.setData(Qt.UserRole, s.id)
             self.session_list.addItem(item)
@@ -562,13 +702,44 @@ class MainWindow(QMainWindow):
         sessions = self.session_manager.list_sessions()
         for s in sessions:
             if s.id == sess_id and s.markdown_file and os.path.exists(s.markdown_file):
+                if self.is_recording:
+                    self._stop_recording()
+
+                self.active_session_id = s.id
                 self.title_input.setText(s.title)
-                self.status_text.setText(f"Viewing session: {s.title} ({s.created_at[:10]})")
+
+                # Format session duration onto timer label
+                mins, secs = divmod(int(s.duration_seconds), 60)
+                hours, mins = divmod(mins, 60)
+                dur_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
+                self.timer_label.setText(dur_str)
+
+                # Read and parse markdown into turns
+                try:
+                    with open(s.markdown_file, "r", encoding="utf-8") as f:
+                        md_text = f.read()
+                    turns = self.turn_manager.load_from_markdown(md_text)
+                    self.transcript_widget.clear()
+                    for t in turns:
+                        self.transcript_widget.add_turn(t)
+                    self.status_text.setText(f"Loaded past session: {s.title} ({len(turns)} turns)")
+                except Exception as e:
+                    self.status_text.setText(f"Error loading transcript: {e}")
+
+                # If sidebar is not pinned, auto-collapse on selection to give full view
+                if not self.is_sidebar_pinned:
+                    self.splitter.setSizes([0, 1000])
+                    self.btn_open_sidebar.setVisible(True)
                 break
 
     def _export_markdown(self):
         title = self.title_input.text().strip() or "Transcript"
-        duration = time.time() - self.session_start_time if self.session_start_time > 0 else 0.0
+        if self.is_recording and self.session_start_time > 0:
+            duration = max(0.0, time.time() - self.session_start_time)
+        else:
+            duration = getattr(self, "session_duration", 0.0)
+            if duration <= 0.0 and self.session_start_time > 0:
+                duration = max(0.0, time.time() - self.session_start_time)
         dt = datetime.fromtimestamp(self.session_start_time if self.session_start_time > 0 else time.time())
         md = self.turn_manager.to_markdown(title, dt, duration)
 
@@ -583,7 +754,12 @@ class MainWindow(QMainWindow):
 
     def _export_txt(self):
         title = self.title_input.text().strip() or "Transcript"
-        duration = time.time() - self.session_start_time if self.session_start_time > 0 else 0.0
+        if self.is_recording and self.session_start_time > 0:
+            duration = max(0.0, time.time() - self.session_start_time)
+        else:
+            duration = getattr(self, "session_duration", 0.0)
+            if duration <= 0.0 and self.session_start_time > 0:
+                duration = max(0.0, time.time() - self.session_start_time)
         dt = datetime.fromtimestamp(self.session_start_time if self.session_start_time > 0 else time.time())
         txt = self.turn_manager.to_plain_text(title, dt, duration)
 
@@ -600,6 +776,9 @@ class MainWindow(QMainWindow):
         for turn in self.turn_manager.turns:
             if turn.id == turn_id:
                 turn.update_text(new_text)
+                # Auto-save changes back to storage if viewing a saved session or finished recording
+                if not self.is_recording and self.turn_manager.turns:
+                    self._save_current_session()
                 break
 
     def _on_source_toggled(self):

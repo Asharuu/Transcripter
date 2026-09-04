@@ -82,7 +82,10 @@ class GeminiSTTEngine(BaseSTTEngine):
                 ),
             )
             if response and response.text:
-                return response.text.strip()
+                import re
+                cleaned = re.sub(r"\d{1,2}:\d{2}:\d{2}[,\.]\d{1,3}\s*-->\s*\d{1,2}:\d{2}:\d{2}[,\.]\d{1,3}", "", response.text)
+                cleaned = re.sub(r"^\s*\d+\s*$", "", cleaned, flags=re.MULTILINE)
+                return cleaned.strip()
             return ""
 
         except Exception as e:

@@ -67,9 +67,12 @@ class SpeakerTurnCard(QFrame):
         """)
         header_layout.addWidget(self.badge)
 
-        # Timestamp info
-        mins, secs = divmod(int(turn.start_time), 60)
-        self.time_label = QLabel(f"{mins:02d}:{secs:02d}")
+        # Timestamp info (clamp to non-negative)
+        safe_time = max(0, int(turn.start_time))
+        mins, secs = divmod(safe_time, 60)
+        hours, mins = divmod(mins, 60)
+        time_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
+        self.time_label = QLabel(time_str)
         self.time_label.setStyleSheet("color: #94a3b8; font-size: 11px;")
         header_layout.addWidget(self.time_label)
 

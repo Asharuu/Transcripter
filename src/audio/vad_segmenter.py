@@ -88,7 +88,7 @@ class AdaptiveVADSegmenter:
             if not self._is_speaking and self._consecutive_speech_frames >= 3:
                 # Confirmed speech start
                 self._is_speaking = True
-                if not self._buffer:
+                if self._current_speech_start <= 0.0:
                     self._current_speech_start = current_time
         else:
             self._consecutive_silence_frames += 1
@@ -96,6 +96,8 @@ class AdaptiveVADSegmenter:
 
         # Always append to buffer while in speaking state or building pre-roll
         if self._is_speaking or (self._consecutive_speech_frames > 0):
+            if self._current_speech_start <= 0.0:
+                self._current_speech_start = current_time
             self._buffer.append(pcm_frame)
 
         # Calculate current buffer duration
@@ -141,11 +143,18 @@ class AdaptiveVADSegmenter:
 
     def _emit_segment(self, end_time: float) -> SpeechSegment:
         pcm_bytes = b"".join(self._buffer)
+        total_samples = len(pcm_bytes) // 2
+        buffer_duration = total_samples / self.sample_rate
+
+        start_time = self._current_speech_start
+        if start_time <= 0.0 or start_time > end_time:
+            start_time = max(0.0, end_time - buffer_duration)
+
         segment = SpeechSegment(
             channel=self.channel,
             speaker_label=self.speaker_label,
             pcm_data=pcm_bytes,
-            start_time=self._current_speech_start,
+            start_time=start_time,
             end_time=end_time,
         )
         self.reset()

@@ -98,7 +98,75 @@ class SessionManager:
 
         # Update index
         sessions = self.list_sessions()
-        sessions.append(meta)
+        # If session_id exists, replace it, otherwise append
+        existing_idx = next((i for i, s in enumerate(sessions) if s.id == session_id), -1)
+        if existing_idx >= 0:
+            sessions[existing_idx] = meta
+        else:
+            sessions.append(meta)
+
+        try:
+            with open(self.index_file, "w", encoding="utf-8") as f:
+                json.dump([asdict(s) for s in sessions], f, indent=2)
+        except Exception as e:
+            logger.error("Failed to update sessions index: %s", e)
+
+        return meta
+
+    def save_or_update_session(
+        self,
+        session_id: str | None,
+        title: str,
+        duration_seconds: float,
+        system_audio_enabled: bool,
+        microphone_enabled: bool,
+        markdown_text: str,
+        plain_text: str,
+    ) -> SessionMetadata:
+        """Saves or updates an existing session by ID, preserving the ID."""
+        if not session_id:
+            session_id = str(uuid.uuid4())
+
+        transcripts_dir = get_transcripts_dir()
+        sessions = self.list_sessions()
+        existing = next((s for s in sessions if s.id == session_id), None)
+
+        if existing and existing.markdown_file:
+            md_path = Path(existing.markdown_file)
+            txt_path = Path(existing.txt_file) if existing.txt_file else md_path.with_suffix(".txt")
+            created_at = existing.created_at
+        else:
+            timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).strip() or "Transcript"
+            md_path = transcripts_dir / f"{safe_title}_{timestamp_slug}.md"
+            txt_path = transcripts_dir / f"{safe_title}_{timestamp_slug}.txt"
+            created_at = datetime.now().isoformat()
+
+        try:
+            with open(md_path, "w", encoding="utf-8") as f:
+                f.write(markdown_text)
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(plain_text)
+        except Exception as e:
+            logger.error("Failed to save transcript files: %s", e)
+
+        meta = SessionMetadata(
+            id=session_id,
+            title=title,
+            created_at=created_at,
+            duration_seconds=duration_seconds,
+            system_audio_enabled=system_audio_enabled,
+            microphone_enabled=microphone_enabled,
+            markdown_file=str(md_path),
+            txt_file=str(txt_path),
+        )
+
+        existing_idx = next((i for i, s in enumerate(sessions) if s.id == session_id), -1)
+        if existing_idx >= 0:
+            sessions[existing_idx] = meta
+        else:
+            sessions.append(meta)
+
         try:
             with open(self.index_file, "w", encoding="utf-8") as f:
                 json.dump([asdict(s) for s in sessions], f, indent=2)

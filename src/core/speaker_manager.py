@@ -147,3 +147,52 @@ class SpeakerTurnManager:
             lines.append("")
 
         return "\n".join(lines).strip() + "\n"
+
+    def load_from_markdown(self, md_content: str) -> list[SpeakerTurn]:
+        """Parses an exported markdown transcript file back into SpeakerTurn objects."""
+        import re
+        self.reset()
+        current_speaker = None
+        current_texts: list[str] = []
+
+        for line in md_content.splitlines():
+            # Check speaker header: ### Speaker 1 (You)
+            speaker_match = re.match(r"^###\s+(.*)$", line.strip())
+            if speaker_match:
+                if current_speaker and current_texts:
+                    turn = SpeakerTurn(
+                        id=self._next_id,
+                        speaker=current_speaker,
+                        start_time=0.0,
+                        end_time=0.0,
+                        texts=["\n".join(current_texts).strip()],
+                        is_finalized=True,
+                    )
+                    self._next_id += 1
+                    self.turns.append(turn)
+                    current_texts.clear()
+                current_speaker = speaker_match.group(1).strip()
+                continue
+
+            # Skip title / meta lines
+            if line.startswith("# ") or line.startswith("**") or line.startswith("## ") or not line.strip():
+                continue
+
+            if current_speaker:
+                current_texts.append(line.strip())
+
+        # Final trailing speaker
+        if current_speaker and current_texts:
+            turn = SpeakerTurn(
+                id=self._next_id,
+                speaker=current_speaker,
+                start_time=0.0,
+                end_time=0.0,
+                texts=["\n".join(current_texts).strip()],
+                is_finalized=True,
+            )
+            self._next_id += 1
+            self.turns.append(turn)
+
+        return self.turns
+
