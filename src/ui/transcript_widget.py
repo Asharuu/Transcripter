@@ -106,6 +106,8 @@ class SpeakerTurnCard(QFrame):
         # Editable Text Body (Crisp phosphor ink, clean line height)
         self.text_edit = QPlainTextEdit(turn.full_text)
         self.text_edit.setFont(QFont("Segoe UI", 11))
+        self.text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.text_edit.setStyleSheet("""
             QPlainTextEdit {
                 background-color: transparent;
@@ -128,9 +130,10 @@ class SpeakerTurnCard(QFrame):
         layout.addWidget(self.text_edit)
 
     def _adjust_height(self):
-        doc = self.text_edit.document()
-        doc_height = int(doc.size().height())
-        self.text_edit.setFixedHeight(max(40, doc_height + 15))
+        lines = max(1, self.text_edit.document().lineCount())
+        line_spacing = self.text_edit.fontMetrics().lineSpacing()
+        margin = int(self.text_edit.document().documentMargin() * 2) + 12
+        self.text_edit.setFixedHeight(max(42, (lines * line_spacing) + margin))
 
     def update_text(self, new_text: str):
         """Update text programmatically when new sentences arrive in the same turn."""
