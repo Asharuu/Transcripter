@@ -7,28 +7,44 @@ from pathlib import Path
 
 
 def create_desktop_shortcut() -> tuple[bool, str]:
-    """Creates a Windows Desktop shortcut pointing to pythonw.exe running Transcripter silently."""
+    """Creates a Windows Desktop shortcut pointing to Transcripter.exe with AppUserModelID."""
     try:
         project_root = Path(__file__).resolve().parent.parent.parent
+        exe_path = project_root / "Transcripter.exe"
+
+        # If compiled launcher exists, use it to install shortcuts with native AppUserModelID
+        if exe_path.exists():
+            res = subprocess.run(
+                [str(exe_path), "--install-shortcuts"],
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            if res.returncode == 0:
+                desktop_path = Path(os.environ.get("USERPROFILE", "")) / "Desktop" / "Transcripter.lnk"
+                return True, f"Shortcut successfully created at:\n{desktop_path}"
+
+        # Fallback to PowerShell WScript.Shell
         pythonw_path = project_root / ".venv" / "Scripts" / "pythonw.exe"
         if not pythonw_path.exists():
             pythonw_path = Path(sys.executable).parent / "pythonw.exe"
             if not pythonw_path.exists():
                 pythonw_path = Path(sys.executable)
 
+        target_bin = str(exe_path) if exe_path.exists() else str(pythonw_path)
+        args_str = "" if exe_path.exists() else "-m src.main"
+
         icon_path = project_root / "assets" / "icon.ico"
         if not icon_path.exists():
-            # Fallback to PNG if ICO doesn't exist
             icon_path = project_root / "assets" / "icon.png"
 
-        # PowerShell command using WScript.Shell
         ps_script = f"""
 $ws = New-Object -ComObject WScript.Shell
 $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
 $shortcutPath = Join-Path $desktop 'Transcripter.lnk'
 $shortcut = $ws.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = '{pythonw_path}'
-$shortcut.Arguments = '-m src.main'
+$shortcut.TargetPath = '{target_bin}'
+$shortcut.Arguments = '{args_str}'
 $shortcut.WorkingDirectory = '{project_root}'
 $shortcut.IconLocation = '{icon_path}'
 $shortcut.Description = 'Transcripter - Real-time AI Audio & Meeting Transcription'

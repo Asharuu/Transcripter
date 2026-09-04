@@ -36,14 +36,30 @@ def install_start_menu_shortcut() -> tuple[bool, str]:
 
     try:
         project_root, pythonw_path, icon_path = get_project_paths()
+        exe_path = project_root / "Transcripter.exe"
+
+        # If compiled launcher exists, use it to set native AppUserModelID on shortcut
+        if exe_path.exists():
+            res = subprocess.run(
+                [str(exe_path), "--install-shortcuts"],
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            if res.returncode == 0:
+                programs_path = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Transcripter.lnk"
+                return True, str(programs_path)
+
+        target_bin = str(exe_path) if exe_path.exists() else str(pythonw_path)
+        args_str = "" if exe_path.exists() else "-m src.main"
 
         ps_script = f"""
 $ws = New-Object -ComObject WScript.Shell
 $programs = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
 $shortcutPath = Join-Path $programs 'Transcripter.lnk'
 $shortcut = $ws.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = '{pythonw_path}'
-$shortcut.Arguments = '-m src.main'
+$shortcut.TargetPath = '{target_bin}'
+$shortcut.Arguments = '{args_str}'
 $shortcut.WorkingDirectory = '{project_root}'
 $shortcut.IconLocation = '{icon_path}'
 $shortcut.Description = 'Transcripter - Real-time AI Audio & Meeting Transcription'
@@ -100,10 +116,15 @@ def set_startup_enabled(enabled: bool, start_minimized: bool = True) -> tuple[bo
 
     try:
         project_root, pythonw_path, _ = get_project_paths()
+        exe_path = project_root / "Transcripter.exe"
 
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_REG_KEY, 0, winreg.KEY_SET_VALUE | winreg.KEY_READ)
         if enabled:
-            cmd = f'"{pythonw_path}" -m src.main'
+            if exe_path.exists():
+                cmd = f'"{exe_path}"'
+            else:
+                cmd = f'"{pythonw_path}" -m src.main'
+
             if start_minimized:
                 cmd += " --startup"
 

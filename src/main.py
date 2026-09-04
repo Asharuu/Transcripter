@@ -2,14 +2,23 @@
 
 import os
 import sys
+import ctypes
 from pathlib import Path
+
+# Set explicit AppUserModelID on Windows before any GUI/COM libraries load
+if os.name == "nt":
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "Asharuu.Transcripter.Desktop.1.0"
+        )
+    except Exception:
+        pass
 
 # Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import ctypes
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 from PySide6.QtWidgets import QApplication
@@ -18,14 +27,6 @@ from src.ui.main_window import MainWindow
 
 
 def main():
-    # Set explicit AppUserModelID on Windows for clean taskbar grouping and custom icon
-    if os.name == "nt":
-        try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "Asharuu.Transcripter.Desktop.1.0"
-            )
-        except Exception:
-            pass
 
     # Enable high-DPI scaling
     QApplication.setHighDpiScaleFactorRoundingPolicy(

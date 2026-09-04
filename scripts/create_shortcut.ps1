@@ -1,7 +1,15 @@
-# PowerShell script to create Desktop Shortcut for Transcripter
+# PowerShell script to create Desktop and Start Menu Shortcuts for Transcripter
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$exePath = Join-Path $projectRoot "Transcripter.exe"
+
+if (Test-Path $exePath) {
+    & $exePath --install-shortcuts
+    Write-Host "Created shortcuts with native AppUserModelID pointing to: $exePath" -ForegroundColor Green
+    exit 0
+}
+
 $pythonw = Join-Path $projectRoot ".venv\Scripts\pythonw.exe"
 if (-not (Test-Path $pythonw)) {
     $pythonw = "pythonw.exe"
@@ -25,3 +33,4 @@ $shortcut.Description = "Transcripter - Real-time AI Audio & Meeting Transcripti
 $shortcut.Save()
 
 Write-Host "Created desktop shortcut at: $shortcutPath" -ForegroundColor Green
+
