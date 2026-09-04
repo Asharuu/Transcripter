@@ -81,7 +81,10 @@ class MainWindow(QMainWindow):
 
         # Session timing & state
         self.is_recording = False
+        self.is_paused = False
         self.session_start_time = 0.0
+        self.session_accumulated_time = 0.0
+        self.session_duration = 0.0
         self.active_session_id: str | None = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_timer)
@@ -150,6 +153,24 @@ class MainWindow(QMainWindow):
                 font-size: 13px;
             }
             QPushButton#stopAction:hover {
+                background-color: #b91c1c;
+            }
+            QPushButton#pauseAction {
+                background-color: #d97706;
+                border: none;
+                color: #ffffff;
+                font-size: 13px;
+            }
+            QPushButton#pauseAction:hover {
+                background-color: #b45309;
+            }
+            QPushButton#endAction {
+                background-color: #dc2626;
+                border: none;
+                color: #ffffff;
+                font-size: 13px;
+            }
+            QPushButton#endAction:hover {
                 background-color: #b91c1c;
             }
             QLineEdit {
@@ -338,12 +359,20 @@ class MainWindow(QMainWindow):
         self.timer_label.setStyleSheet("color: #94a3b8; padding: 4px 8px;")
         top_bar.addWidget(self.timer_label)
 
-        # Start / Stop Button
+        # Controls layout: Start/Pause/Resume & End Session
         self.btn_record = QPushButton("▶ START")
         self.btn_record.setObjectName("primaryAction")
-        self.btn_record.setMinimumWidth(100)
+        self.btn_record.setMinimumWidth(105)
         self.btn_record.clicked.connect(self._toggle_recording)
         top_bar.addWidget(self.btn_record)
+
+        self.btn_end = QPushButton("⏹ END")
+        self.btn_end.setObjectName("endAction")
+        self.btn_end.setToolTip("Akhiri sesi, simpan transkrip, dan siapkan sesi baru")
+        self.btn_end.setMinimumWidth(90)
+        self.btn_end.clicked.connect(self._end_session)
+        self.btn_end.setVisible(False)
+        top_bar.addWidget(self.btn_end)
 
         ws_layout.addLayout(top_bar)
 
@@ -400,12 +429,16 @@ class MainWindow(QMainWindow):
     # ----------------- RECORDING WORKFLOW -----------------
 
     def _toggle_recording(self):
-        if not self.is_recording:
+        """Toggles between Start -> Pause -> Resume."""
+        if not self.is_recording and not self.is_paused:
             self._start_recording()
-        else:
-            self._stop_recording()
+        elif self.is_recording:
+            self._pause_recording()
+        elif self.is_paused:
+            self._resume_recording()
 
     def _start_recording(self):
+        """Starts recording a brand new session or active session from 0."""
         if not CredentialManager.has_api_key():
             reply = QMessageBox.warning(
                 self,
@@ -442,7 +475,7 @@ class MainWindow(QMainWindow):
 
         adm.close()
 
-        # Start audio engine
+        # Start audio capture engine
         started = self.audio_engine.start(
             system_audio_index=sys_idx,
             mic_index=mic_idx,
@@ -457,13 +490,17 @@ class MainWindow(QMainWindow):
         self.mic_segmenter.reset()
         self.system_segmenter.reset()
         self.is_recording = True
+        self.is_paused = False
+        self.session_accumulated_time = 0.0
         self.session_start_time = time.time()
         self.session_duration = 0.0
 
         # UI updates
-        self.btn_record.setText("■ STOP")
-        self.btn_record.setObjectName("stopAction")
+        self.btn_record.setText("⏸ PAUSE")
+        self.btn_record.setObjectName("pauseAction")
         self.btn_record.setStyle(self.btn_record.style())
+        self.btn_end.setVisible(True)
+
         self.state_badge.setText("● RECORDING")
         self.state_badge.setStyleSheet("background-color: #991b1b; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
         self.status_text.setText("Listening & buffering speech...")
@@ -471,20 +508,27 @@ class MainWindow(QMainWindow):
         self.chk_mic.setEnabled(False)
         self.timer.start(1000)
 
-    def _stop_recording(self):
+    def _pause_recording(self):
+        """Temporarily pauses listening without closing or clearing the current session."""
+        if not self.is_recording:
+            return
+
         self.is_recording = False
+        self.is_paused = True
         self.timer.stop()
         self.audio_engine.stop()
 
+        # Accumulate elapsed time up to pause point
         now = time.time()
         if self.session_start_time > 0:
-            self.session_duration = max(0.0, now - self.session_start_time)
+            self.session_accumulated_time += max(0.0, now - self.session_start_time)
+            self.session_duration = self.session_accumulated_time
             mins, secs = divmod(int(self.session_duration), 60)
             hours, mins = divmod(mins, 60)
             dur_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
             self.timer_label.setText(dur_str)
 
-        # Flush any remaining audio in segmenters
+        # Flush any speech buffer remaining before pause
         mic_flush = self.mic_segmenter.flush(now)
         sys_flush = self.system_segmenter.flush(now)
 
@@ -493,22 +537,145 @@ class MainWindow(QMainWindow):
         if sys_flush:
             self._process_speech_segment_async(sys_flush)
 
-        # UI updates
-        self.btn_record.setText("▶ START")
+        # Finalize currently open speaker turn
+        self.turn_manager.finalize_active_turn()
+
+        # UI updates for PAUSED state
+        self.btn_record.setText("▶ RESUME")
         self.btn_record.setObjectName("primaryAction")
         self.btn_record.setStyle(self.btn_record.style())
-        self.state_badge.setText("COMPLETED")
-        self.state_badge.setStyleSheet("background-color: #1e293b; color: #94a3b8; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
-        self.status_text.setText("Session complete. You can edit the transcript and export.")
+        self.btn_end.setVisible(True)
+
+        self.state_badge.setText("⏸ PAUSED")
+        self.state_badge.setStyleSheet("background-color: #d97706; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+        self.status_text.setText("Session paused. Click RESUME to continue or END to finish & save.")
         self.vu_meter.setValue(0)
-        self.chk_system.setEnabled(True)
-        self.chk_mic.setEnabled(True)
+
+        # Save session in paused state
+        self._save_current_session()
+
+    def _resume_recording(self):
+        """Resumes listening for the same session, continuing duration and transcript."""
+        if self.is_recording:
+            return
+
+        # Prepare device indices
+        adm = AudioDeviceManager()
+        sys_idx = None
+        mic_idx = None
+
+        if self.chk_system.isChecked():
+            if self.config.system_audio_device_index is not None:
+                sys_idx = self.config.system_audio_device_index
+            else:
+                default_loop = adm.get_default_loopback_device()
+                sys_idx = default_loop.index if default_loop else None
+
+        if self.chk_mic.isChecked():
+            if self.config.microphone_device_index is not None:
+                mic_idx = self.config.microphone_device_index
+            else:
+                default_mic = adm.get_default_microphone_device()
+                mic_idx = default_mic.index if default_mic else None
+
+        adm.close()
+
+        # Restart audio capture engine
+        started = self.audio_engine.start(
+            system_audio_index=sys_idx,
+            mic_index=mic_idx,
+            on_audio_chunk=self._on_raw_audio_chunk,
+        )
+
+        if not started:
+            QMessageBox.critical(self, "Audio Error", "Failed to resume audio capture devices.")
+            return
+
+        self.mic_segmenter.reset()
+        self.system_segmenter.reset()
+        self.is_recording = True
+        self.is_paused = False
+        self.session_start_time = time.time()  # Start of new interval
+
+        # UI updates for RECORDING state
+        self.btn_record.setText("⏸ PAUSE")
+        self.btn_record.setObjectName("pauseAction")
+        self.btn_record.setStyle(self.btn_record.style())
+        self.btn_end.setVisible(True)
+
+        self.state_badge.setText("● RECORDING")
+        self.state_badge.setStyleSheet("background-color: #991b1b; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+        self.status_text.setText("Recording resumed. Listening & buffering speech...")
+        self.timer.start(1000)
+
+    def _end_session(self):
+        """Ends current session, saves it permanently to history, and prepares a new session."""
+        was_active = self.is_recording or self.is_paused or bool(self.turn_manager.turns)
+
+        if self.is_recording:
+            self.is_recording = False
+            self.timer.stop()
+            self.audio_engine.stop()
+
+            now = time.time()
+            if self.session_start_time > 0:
+                self.session_accumulated_time += max(0.0, now - self.session_start_time)
+                self.session_duration = self.session_accumulated_time
+
+            # Flush any remaining audio in segmenters
+            mic_flush = self.mic_segmenter.flush(now)
+            sys_flush = self.system_segmenter.flush(now)
+
+            if mic_flush:
+                self._process_speech_segment_async(mic_flush)
+            if sys_flush:
+                self._process_speech_segment_async(sys_flush)
+        else:
+            self.timer.stop()
+
+        self.is_recording = False
+        self.is_paused = False
 
         # Finalize turn
         self.turn_manager.finalize_active_turn()
 
-        # Auto-save session to history
-        self._save_current_session()
+        # Save current session to history if there are turns
+        saved_title = self.title_input.text().strip() or "Untitled Session"
+        if self.turn_manager.turns:
+            self._save_current_session()
+
+        # Prepare new session immediately as requested
+        self._prepare_new_session(saved_title=saved_title if was_active else None)
+
+    def _prepare_new_session(self, saved_title: str | None = None):
+        """Resets workspace and prepares a clean, new recording session."""
+        self.is_recording = False
+        self.is_paused = False
+        self.session_start_time = 0.0
+        self.session_accumulated_time = 0.0
+        self.session_duration = 0.0
+        self.active_session_id = None
+
+        self.turn_manager.reset()
+        self.transcript_widget.clear()
+        self.title_input.setText("Untitled Session")
+        self.timer_label.setText("00:00")
+        self.vu_meter.setValue(0)
+        self.chk_system.setEnabled(True)
+        self.chk_mic.setEnabled(True)
+
+        self.btn_record.setText("▶ START")
+        self.btn_record.setObjectName("primaryAction")
+        self.btn_record.setStyle(self.btn_record.style())
+        self.btn_end.setVisible(False)
+
+        self.state_badge.setText("READY")
+        self.state_badge.setStyleSheet("background-color: #1e293b; color: #94a3b8; font-weight: bold; padding: 3px 8px; border-radius: 4px;")
+
+        if saved_title:
+            self.status_text.setText(f"Session '{saved_title}' saved! New session ready. Press START.")
+        else:
+            self.status_text.setText("New session ready. Press START.")
 
     def _on_raw_audio_chunk(self, pcm16: bytes, timestamp: float, channel: AudioChannelType):
         """Callback from audio capture threads."""
@@ -546,8 +713,10 @@ class MainWindow(QMainWindow):
             if self.config.ai_post_processing_enabled:
                 final_text = self.post_processor.process(raw_text)
 
-            rel_start = max(0.0, segment.start_time - self.session_start_time)
-            rel_end = max(rel_start + segment.duration, segment.end_time - self.session_start_time)
+            # Calculate relative timestamps taking into account paused durations
+            interval_offset = max(0.0, segment.start_time - self.session_start_time)
+            rel_start = self.session_accumulated_time + interval_offset
+            rel_end = rel_start + segment.duration
 
             self.bridge.segment_transcribed.emit(
                 segment.speaker_label,
@@ -642,8 +811,10 @@ class MainWindow(QMainWindow):
             self.btn_pin_sidebar.setToolTip("Sidebar is unpinned (Click to pin)")
 
     def _update_timer(self):
-        elapsed = time.time() - self.session_start_time
-        mins, secs = divmod(int(elapsed), 60)
+        current_elapsed = self.session_accumulated_time
+        if self.is_recording and self.session_start_time > 0:
+            current_elapsed += max(0.0, time.time() - self.session_start_time)
+        mins, secs = divmod(int(current_elapsed), 60)
         hours, mins = divmod(mins, 60)
         if hours > 0:
             self.timer_label.setText(f"{hours:02d}:{mins:02d}:{secs:02d}")
@@ -651,25 +822,21 @@ class MainWindow(QMainWindow):
             self.timer_label.setText(f"{mins:02d}:{secs:02d}")
 
     def _new_session(self):
-        if self.is_recording:
-            self._stop_recording()
-        self.active_session_id = None
-        self.turn_manager.reset()
-        self.transcript_widget.clear()
-        self.title_input.setText("Untitled Session")
-        self.timer_label.setText("00:00")
-        self.status_text.setText("New session ready. Press START.")
+        if self.is_recording or self.is_paused:
+            self._end_session()
+        else:
+            self._prepare_new_session()
 
     def _save_current_session(self):
         if not self.turn_manager.turns:
             return
 
         if self.is_recording and self.session_start_time > 0:
-            duration = max(0.0, time.time() - self.session_start_time)
+            duration = self.session_accumulated_time + max(0.0, time.time() - self.session_start_time)
         else:
             duration = getattr(self, "session_duration", 0.0)
-            if duration <= 0.0 and self.session_start_time > 0:
-                duration = max(0.0, time.time() - self.session_start_time)
+            if duration <= 0.0:
+                duration = self.session_accumulated_time
 
         title = self.title_input.text().strip() or "Untitled Session"
         dt = datetime.fromtimestamp(self.session_start_time if self.session_start_time > 0 else time.time())
@@ -702,8 +869,8 @@ class MainWindow(QMainWindow):
         sessions = self.session_manager.list_sessions()
         for s in sessions:
             if s.id == sess_id and s.markdown_file and os.path.exists(s.markdown_file):
-                if self.is_recording:
-                    self._stop_recording()
+                if self.is_recording or self.is_paused:
+                    self._end_session()
 
                 self.active_session_id = s.id
                 self.title_input.setText(s.title)
@@ -735,11 +902,11 @@ class MainWindow(QMainWindow):
     def _export_markdown(self):
         title = self.title_input.text().strip() or "Transcript"
         if self.is_recording and self.session_start_time > 0:
-            duration = max(0.0, time.time() - self.session_start_time)
+            duration = self.session_accumulated_time + max(0.0, time.time() - self.session_start_time)
         else:
             duration = getattr(self, "session_duration", 0.0)
-            if duration <= 0.0 and self.session_start_time > 0:
-                duration = max(0.0, time.time() - self.session_start_time)
+            if duration <= 0.0:
+                duration = self.session_accumulated_time
         dt = datetime.fromtimestamp(self.session_start_time if self.session_start_time > 0 else time.time())
         md = self.turn_manager.to_markdown(title, dt, duration)
 
@@ -755,11 +922,11 @@ class MainWindow(QMainWindow):
     def _export_txt(self):
         title = self.title_input.text().strip() or "Transcript"
         if self.is_recording and self.session_start_time > 0:
-            duration = max(0.0, time.time() - self.session_start_time)
+            duration = self.session_accumulated_time + max(0.0, time.time() - self.session_start_time)
         else:
             duration = getattr(self, "session_duration", 0.0)
-            if duration <= 0.0 and self.session_start_time > 0:
-                duration = max(0.0, time.time() - self.session_start_time)
+            if duration <= 0.0:
+                duration = self.session_accumulated_time
         dt = datetime.fromtimestamp(self.session_start_time if self.session_start_time > 0 else time.time())
         txt = self.turn_manager.to_plain_text(title, dt, duration)
 
