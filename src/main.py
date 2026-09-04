@@ -62,8 +62,23 @@ def main():
     palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
     app.setPalette(palette)
 
+    # Allow background execution when minimized to system tray
+    app.setQuitOnLastWindowClosed(False)
+
     window = MainWindow()
-    window.show()
+
+    start_minimized = "--startup" in sys.argv or "--minimized" in sys.argv
+    if not start_minimized:
+        window.show()
+    else:
+        # Running in silent background startup mode
+        if hasattr(window, "tray_icon") and window.tray_icon.isSystemTrayAvailable():
+            window.tray_icon.showMessage(
+                "Transcripter Active",
+                "Transcripter is running in the background. Meeting auto-detection is active.",
+                window.tray_icon.icon(),
+                3000,
+            )
 
     sys.exit(app.exec())
 

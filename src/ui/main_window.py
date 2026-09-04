@@ -40,6 +40,7 @@ from src.ui.transcript_widget import TranscriptViewWidget
 from src.ui.settings_dialog import SettingsDialog
 from src.audio.meeting_detector import MeetingDetector
 from src.ui.meeting_popup import MeetingPopupWidget
+from src.ui.system_tray import TranscripterTrayIcon
 
 
 class WorkerBridge(QObject):
@@ -190,6 +191,14 @@ class MainWindow(QMainWindow):
         self.meeting_detector.meeting_detected.connect(self._on_meeting_detected)
         self.meeting_popup.start_requested.connect(self._on_popup_start_requested)
         self.meeting_popup.dismissed.connect(self._on_popup_dismissed)
+
+        # System Tray Integration
+        self.tray_icon = TranscripterTrayIcon(self)
+        self.tray_icon.show_window_requested.connect(self._restore_from_tray)
+        self.tray_icon.toggle_recording_requested.connect(self._toggle_recording)
+        self.tray_icon.settings_requested.connect(self._open_settings)
+        self.tray_icon.quit_requested.connect(self._quit_application)
+        self.tray_icon.show()
 
         self._init_ui()
         self._load_recent_sessions()
@@ -728,6 +737,7 @@ class MainWindow(QMainWindow):
         self.chk_system.setEnabled(False)
         self.chk_mic.setEnabled(False)
         self.timer.start(1000)
+        self.tray_icon.update_recording_state(True, False)
 
     def _pause_recording(self):
         """Temporarily pauses listening without closing or clearing the current session."""
@@ -737,6 +747,7 @@ class MainWindow(QMainWindow):
         self.is_recording = False
         self.is_paused = True
         self.meeting_detector.set_recording_active(True)
+        self.tray_icon.update_recording_state(False, True)
         self.timer.stop()
         self.audio_engine.stop()
 
@@ -848,6 +859,7 @@ class MainWindow(QMainWindow):
         """)
         self.status_text.setText("Recording resumed. Listening & buffering speech...")
         self.timer.start(1000)
+        self.tray_icon.update_recording_state(True, False)
 
     def _end_session(self):
         """Ends current session, saves it permanently to history, and prepares a new session."""
@@ -877,6 +889,7 @@ class MainWindow(QMainWindow):
         self.is_recording = False
         self.is_paused = False
         self.meeting_detector.set_recording_active(False)
+        self.tray_icon.update_recording_state(False, False)
 
         # Finalize turn
         self.turn_manager.finalize_active_turn()
@@ -1384,9 +1397,35 @@ class MainWindow(QMainWindow):
         if not CredentialManager.has_api_key():
             self.status_text.setText("⚠ Gemini API key not configured. Click Settings to enter key.")
 
-    def closeEvent(self, event):
+    def _restore_from_tray(self):
+        """Restores and brings the main window to the front from the system tray."""
+        if self.isMinimized():
+            self.showNormal()
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _quit_application(self):
+        """Cleanly terminates the application, stops background audio and detectors."""
         self.meeting_detector.stop()
         self.meeting_popup.close()
         if self.is_recording:
             self._end_session()
-        event.accept()
+        self.tray_icon.hide()
+        QApplication.quit()
+
+    def closeEvent(self, event):
+        """Handles window close; minimizes to tray if configured, or exits cleanly."""
+        if self.config.minimize_to_tray_on_close:
+            event.ignore()
+            self.hide()
+            if self.tray_icon.isSystemTrayAvailable():
+                self.tray_icon.showMessage(
+                    "Transcripter Minimized",
+                    "Transcripter is still running in the system tray. Meeting detection remains active.",
+                    self.tray_icon.icon(),
+                    1500,
+                )
+        else:
+            self._quit_application()
+            event.accept()

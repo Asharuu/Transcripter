@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from src.core.credentials import CredentialManager
 from src.core.config import AppConfig
 from src.core.shortcut_manager import create_desktop_shortcut
+from src.core.startup_manager import is_startup_enabled, set_startup_enabled
 from src.audio.device_manager import AudioDeviceManager
 
 
@@ -229,18 +230,39 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(ai_group)
 
-        # 4. SYSTEM & DESKTOP INTEGRATION
-        sys_group = QGroupBox("System & Desktop Integration")
-        sys_layout = QHBoxLayout(sys_group)
-        sys_desc = QLabel("Pin or restore launch shortcut on Windows Desktop:")
-        sys_desc.setStyleSheet("color: #94a3b8; font-size: 11px;")
-        sys_layout.addWidget(sys_desc)
-        sys_layout.addStretch()
+        # 4. SYSTEM & STARTUP INTEGRATION
+        sys_group = QGroupBox("System & Startup Integration")
+        sys_layout = QVBoxLayout(sys_group)
+        sys_layout.setSpacing(8)
+
+        self.chk_startup = QCheckBox("Start Transcripter automatically when Windows boots (Startup Apps)")
+        self.chk_startup.setStyleSheet("color: #e2e8f0; font-weight: bold;")
+        sys_layout.addWidget(self.chk_startup)
+
+        self.chk_start_minimized = QCheckBox("Start minimized to System Tray on boot")
+        self.chk_start_minimized.setStyleSheet("color: #cbd5e1; margin-left: 22px;")
+        sys_layout.addWidget(self.chk_start_minimized)
+
+        self.chk_close_to_tray = QCheckBox("Minimize to System Tray instead of exiting when window is closed")
+        self.chk_close_to_tray.setStyleSheet("color: #cbd5e1;")
+        sys_layout.addWidget(self.chk_close_to_tray)
+
+        sys_btn_row = QHBoxLayout()
+        sys_btn_row.setContentsMargins(0, 4, 0, 0)
+        sys_btn_row.setSpacing(8)
 
         self.btn_create_shortcut = QPushButton("🖥 Create Desktop Shortcut")
         self.btn_create_shortcut.setObjectName("secondaryBtn")
         self.btn_create_shortcut.clicked.connect(self._create_desktop_shortcut)
-        sys_layout.addWidget(self.btn_create_shortcut)
+        sys_btn_row.addWidget(self.btn_create_shortcut)
+
+        self.btn_sync_startup = QPushButton("🚀 Update Windows Startup Apps")
+        self.btn_sync_startup.setObjectName("secondaryBtn")
+        self.btn_sync_startup.clicked.connect(self._sync_startup_action)
+        sys_btn_row.addWidget(self.btn_sync_startup)
+
+        sys_btn_row.addStretch()
+        sys_layout.addLayout(sys_btn_row)
 
         layout.addWidget(sys_group)
 
@@ -310,6 +332,11 @@ class SettingsDialog(QDialog):
         self.chk_auto_meeting.setChecked(self.config.auto_detect_meetings)
         self.spin_vad_pause.setValue(self.config.audio.vad_silence_seconds)
 
+        # System & Startup settings
+        self.chk_startup.setChecked(is_startup_enabled())
+        self.chk_start_minimized.setChecked(self.config.start_minimized_to_tray)
+        self.chk_close_to_tray.setChecked(self.config.minimize_to_tray_on_close)
+
     def _test_key(self):
         key = self.api_key_input.text().strip()
         if not key:
@@ -351,6 +378,15 @@ class SettingsDialog(QDialog):
         else:
             QMessageBox.critical(self, "Shortcut Error", msg)
 
+    def _sync_startup_action(self):
+        enabled = self.chk_startup.isChecked()
+        minimized = self.chk_start_minimized.isChecked()
+        ok, msg = set_startup_enabled(enabled, minimized)
+        if ok:
+            QMessageBox.information(self, "Windows Startup Apps", msg)
+        else:
+            QMessageBox.critical(self, "Startup Error", msg)
+
     def _save_settings(self):
         # Save API key
         key = self.api_key_input.text().strip()
@@ -366,6 +402,14 @@ class SettingsDialog(QDialog):
         self.config.ai_post_processing_enabled = self.chk_post_process.isChecked()
         self.config.auto_detect_meetings = self.chk_auto_meeting.isChecked()
         self.config.audio.vad_silence_seconds = self.spin_vad_pause.value()
+
+        # Save Startup & Tray settings
+        self.config.launch_at_startup = self.chk_startup.isChecked()
+        self.config.start_minimized_to_tray = self.chk_start_minimized.isChecked()
+        self.config.minimize_to_tray_on_close = self.chk_close_to_tray.isChecked()
+
+        # Apply to Windows Registry Run key
+        set_startup_enabled(self.config.launch_at_startup, self.config.start_minimized_to_tray)
 
         self.config.save()
         self.settings_saved.emit()

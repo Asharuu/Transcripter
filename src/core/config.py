@@ -56,6 +56,11 @@ class AppConfig:
     ai_post_processing_enabled: bool = True
     auto_detect_meetings: bool = True
 
+    # Windows Startup & System Tray Integration
+    launch_at_startup: bool = True
+    start_minimized_to_tray: bool = True
+    minimize_to_tray_on_close: bool = False
+
     # Audio Engine Tuning
     audio: AudioSettings = field(default_factory=AudioSettings)
 
@@ -70,6 +75,9 @@ class AppConfig:
             "stt_model": self.stt_model,
             "ai_post_processing_enabled": self.ai_post_processing_enabled,
             "auto_detect_meetings": self.auto_detect_meetings,
+            "launch_at_startup": self.launch_at_startup,
+            "start_minimized_to_tray": self.start_minimized_to_tray,
+            "minimize_to_tray_on_close": self.minimize_to_tray_on_close,
             "audio": {
                 "sample_rate": self.audio.sample_rate,
                 "chunk_ms": self.audio.chunk_ms,
@@ -113,6 +121,9 @@ class AppConfig:
                 stt_model=raw_model,
                 ai_post_processing_enabled=data.get("ai_post_processing_enabled", True),
                 auto_detect_meetings=data.get("auto_detect_meetings", True),
+                launch_at_startup=data.get("launch_at_startup", True),
+                start_minimized_to_tray=data.get("start_minimized_to_tray", True),
+                minimize_to_tray_on_close=data.get("minimize_to_tray_on_close", False),
                 audio=audio_settings
             )
         except Exception:
