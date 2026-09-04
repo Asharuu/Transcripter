@@ -206,3 +206,86 @@ class SessionManager:
             except Exception as e:
                 logger.error("Failed to save updated index: %s", e)
         return False
+
+    def get_session(self, session_id: str) -> SessionMetadata | None:
+        """Retrieves metadata for a specific session ID."""
+        for s in self.list_sessions():
+            if s.id == session_id:
+                return s
+        return None
+
+    def rename_session(self, session_id: str, new_title: str) -> SessionMetadata | None:
+        """Renames an existing session, updates markdown/plain text headers, and persists to index."""
+        clean_title = new_title.strip()
+        if not clean_title:
+            return None
+
+        sessions = self.list_sessions()
+        target = None
+        for s in sessions:
+            if s.id == session_id:
+                s.title = clean_title
+                target = s
+                break
+
+        if not target:
+            return None
+
+        # Update title inside markdown file if present
+        if target.markdown_file and Path(target.markdown_file).exists():
+            try:
+                with open(target.markdown_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                lines = content.splitlines()
+                if lines and lines[0].startswith("# "):
+                    lines[0] = f"# {clean_title}"
+                    content = "\n".join(lines)
+                with open(target.markdown_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except Exception as e:
+                logger.error("Failed to update markdown title on rename: %s", e)
+
+        # Update title inside plain text file if present
+        if target.txt_file and Path(target.txt_file).exists():
+            try:
+                with open(target.txt_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                lines = content.splitlines()
+                if lines:
+                    lines[0] = clean_title
+                    content = "\n".join(lines)
+                with open(target.txt_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except Exception as e:
+                logger.error("Failed to update text title on rename: %s", e)
+
+        try:
+            with open(self.index_file, "w", encoding="utf-8") as f:
+                json.dump([asdict(s) for s in sessions], f, indent=2)
+            return target
+        except Exception as e:
+            logger.error("Failed to save renamed session index: %s", e)
+            return None
+
+
+def format_relative_time(iso_str: str) -> str:
+    """Formats an ISO-8601 timestamp string into a concise relative time string (e.g. 2d, 3h, 15m, now)."""
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        now = datetime.now()
+        diff = now - dt
+        total_seconds = int(diff.total_seconds())
+        if total_seconds < 60:
+            return "now"
+        minutes = total_seconds // 60
+        if minutes < 60:
+            return f"{minutes}m"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h"
+        days = hours // 24
+        if days < 30:
+            return f"{days}d"
+        return dt.strftime("%b %d")
+    except Exception:
+        return ""

@@ -5,7 +5,7 @@ import sys
 import time
 from datetime import datetime
 from PySide6.QtCore import Qt, QTimer, Signal, Slot, QObject
-from PySide6.QtGui import QFont, QIcon, QAction
+from PySide6.QtGui import QFont, QIcon, QAction, QGuiApplication
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -22,12 +22,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QFrame,
+    QMenu,
+    QInputDialog,
 )
 
 from src.core.config import AppConfig
 from src.core.credentials import CredentialManager
 from src.core.speaker_manager import SpeakerTurnManager, SpeakerTurn
-from src.core.session_manager import SessionManager, SessionMetadata
+from src.core.session_manager import SessionManager, SessionMetadata, format_relative_time
 from src.audio.device_manager import AudioDeviceManager
 from src.audio.wasapi_capture import AudioEngine
 from src.audio.vad_segmenter import AdaptiveVADSegmenter, AudioChannelType, SpeechSegment
@@ -43,6 +45,97 @@ class WorkerBridge(QObject):
     segment_transcribed = Signal(str, str, float, float)  # speaker, text, start_t, end_t
     audio_level_updated = Signal(float)                    # rms volume 0.0 - 1.0
     status_message = Signal(str)                          # status bar message
+
+
+class SessionItemWidget(QWidget):
+    """Custom row widget for a session in the sidebar with title, relative time, and options button."""
+
+    options_clicked = Signal(str, object)  # session_id, QPoint global
+
+    def __init__(self, session: SessionMetadata, parent=None):
+        super().__init__(parent)
+        self.session_id = session.id
+        self._init_ui(session)
+
+    def _init_ui(self, session: SessionMetadata):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 4, 4, 4)
+        layout.setSpacing(6)
+
+        # Title label
+        self.title_label = QLabel(session.title)
+        self.title_label.setFont(QFont("Segoe UI", 10, QFont.DemiBold))
+        self.title_label.setStyleSheet("color: #f1f5f9; background: transparent;")
+        self.title_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        layout.addWidget(self.title_label, 1)
+
+        # Relative time tag (e.g. 2d, 3h, 15m) or duration
+        rel_time = format_relative_time(session.created_at)
+        mins, secs = divmod(int(session.duration_seconds), 60)
+        hours, mins = divmod(mins, 60)
+        dur_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
+
+        time_display = rel_time if rel_time else dur_str
+        self.time_label = QLabel(time_display)
+        self.time_label.setFont(QFont("JetBrains Mono", 9))
+        self.time_label.setStyleSheet("color: #94a3b8; background: transparent; font-family: 'JetBrains Mono', monospace;")
+        self.time_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        layout.addWidget(self.time_label)
+
+        # Three-dots options button (⋮)
+        self.btn_options = QPushButton("⋮")
+        self.btn_options.setFixedSize(22, 22)
+        self.btn_options.setToolTip("Options (Rename, Delete, Copy, Export)")
+        self.btn_options.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                border-radius: 3px;
+                color: #94a3b8;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0;
+            }
+            QPushButton:hover {
+                background-color: #212d25;
+                color: #34d399;
+            }
+        """)
+        self.btn_options.clicked.connect(self._on_options_clicked)
+        layout.addWidget(self.btn_options)
+
+        # Rich Tooltip Card (Image 2 style)
+        try:
+            dt_obj = datetime.fromisoformat(session.created_at)
+            date_str = dt_obj.strftime("%b %d, %Y, %I:%M %p")
+        except Exception:
+            date_str = session.created_at
+
+        self.setToolTip(f"""
+            <div style="padding: 4px; font-family: 'Segoe UI', sans-serif;">
+                <b style="color: #ffffff; font-size: 12px;">{session.title}</b><br/>
+                <span style="color: #34d399; font-size: 11px;">📁 Transcripts</span><br/>
+                <span style="color: #cbd5e1; font-size: 11px;">⏱ Duration: {dur_str}</span><br/>
+                <span style="color: #94a3b8; font-size: 11px;">🕒 Created: {date_str}</span>
+            </div>
+        """)
+
+    def _on_options_clicked(self):
+        pos = self.btn_options.mapToGlobal(self.btn_options.rect().bottomLeft())
+        self.options_clicked.emit(self.session_id, pos)
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        parent_list = self.parent()
+        while parent_list and not isinstance(parent_list, QListWidget):
+            parent_list = parent_list.parent()
+        if parent_list:
+            for i in range(parent_list.count()):
+                item = parent_list.item(i)
+                if parent_list.itemWidget(item) == self:
+                    parent_list.setCurrentItem(item)
+                    parent_list.itemClicked.emit(item)
+                    break
 
 
 class MainWindow(QMainWindow):
@@ -114,29 +207,24 @@ class MainWindow(QMainWindow):
                 outline: 0;
             }
             QListWidget::item {
-                padding: 8px 10px;
-                border-radius: 3px;
+                padding: 2px 4px;
+                border-radius: 4px;
                 margin-bottom: 3px;
-                color: #8fad96;
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                font-size: 11px;
-                border: 1px solid transparent;
+                background-color: #121814;
+                border: 1px solid #1c261f;
             }
             QListWidget::item:hover {
-                background-color: #141c16;
-                color: #34d399;
-                border: 1px solid #1f3326;
+                background-color: #18231a;
+                border: 1px solid #28372e;
             }
             QListWidget::item:selected {
-                background-color: #0f2619;
-                color: #34d399;
+                background-color: #0f2c1c;
                 border: 1px solid #10b981;
-                font-weight: 700;
             }
             QPushButton {
-                background-color: #131915;
-                color: #e0f2e5;
-                border: 1px solid #212c25;
+                background-color: #141c16;
+                color: #f1f5f9;
+                border: 1px solid #28372e;
                 border-radius: 4px;
                 padding: 7px 14px;
                 font-family: 'JetBrains Mono', 'Consolas', monospace;
@@ -144,39 +232,46 @@ class MainWindow(QMainWindow):
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #19221c;
+                background-color: #1f2c24;
                 border-color: #385242;
-                color: #ffffff;
+                color: #34d399;
             }
             QPushButton:pressed {
                 background-color: #0d1410;
             }
             QPushButton#primaryAction {
-                background-color: #10b981;
-                color: #041a0e;
+                background-color: #059669;
+                color: #ffffff;
                 border: 1px solid #34d399;
+                border-radius: 4px;
                 font-weight: 700;
             }
             QPushButton#primaryAction:hover {
-                background-color: #34d399;
-                color: #041a0e;
+                background-color: #10b981;
+                color: #ffffff;
                 border-color: #6ee7b7;
             }
+            QPushButton#primaryAction:pressed {
+                background-color: #047857;
+                color: #ffffff;
+            }
             QPushButton#pauseAction {
-                background-color: #f59e0b;
-                color: #1f1404;
+                background-color: #d97706;
+                color: #ffffff;
                 border: 1px solid #fbbf24;
+                border-radius: 4px;
                 font-weight: 700;
             }
             QPushButton#pauseAction:hover {
-                background-color: #fbbf24;
-                color: #1f1404;
+                background-color: #f59e0b;
+                color: #ffffff;
                 border-color: #fde68a;
             }
             QPushButton#endAction {
                 background-color: #dc2626;
                 color: #ffffff;
                 border: 1px solid #ef4444;
+                border-radius: 4px;
                 font-weight: 700;
             }
             QPushButton#endAction:hover {
@@ -186,12 +281,13 @@ class MainWindow(QMainWindow):
             }
             QLineEdit {
                 background-color: #101612;
-                border: 1px solid #212c25;
+                border: 1px solid #28372e;
                 border-radius: 4px;
                 padding: 7px 12px;
-                color: #e0f2e5;
+                color: #ffffff;
                 font-family: 'JetBrains Mono', 'Consolas', monospace;
                 font-size: 12px;
+                font-weight: 500;
             }
             QLineEdit:focus {
                 background-color: #0b0e0c;
@@ -201,25 +297,26 @@ class MainWindow(QMainWindow):
             QCheckBox {
                 spacing: 8px;
                 font-family: 'JetBrains Mono', 'Consolas', monospace;
-                font-size: 11px;
-                color: #8fad96;
+                font-size: 12px;
+                font-weight: 600;
+                color: #e2e8f0;
             }
             QCheckBox:hover {
-                color: #e0f2e5;
+                color: #ffffff;
             }
             QCheckBox::indicator {
-                width: 14px;
-                height: 14px;
+                width: 15px;
+                height: 15px;
                 border-radius: 3px;
-                border: 1px solid #28372e;
-                background-color: #101612;
+                border: 1px solid #385242;
+                background-color: #121814;
             }
             QCheckBox::indicator:hover {
-                border-color: #10b981;
+                border-color: #34d399;
             }
             QCheckBox::indicator:checked {
                 background-color: #10b981;
-                border-color: #34d399;
+                border-color: #6ee7b7;
             }
             QProgressBar {
                 background-color: #101612;
@@ -247,6 +344,37 @@ class MainWindow(QMainWindow):
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
+            }
+            QMenu {
+                background-color: #121814;
+                border: 1px solid #28372e;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 22px 6px 12px;
+                border-radius: 4px;
+                color: #f1f5f9;
+                font-family: 'Segoe UI', 'JetBrains Mono', sans-serif;
+                font-size: 12px;
+            }
+            QMenu::item:selected {
+                background-color: #0f2c1c;
+                color: #34d399;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #212c25;
+                margin: 4px 2px;
+            }
+            QToolTip {
+                background-color: #121814;
+                color: #e0f2e5;
+                border: 1px solid #28372e;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 11px;
             }
         """)
 
@@ -340,11 +468,13 @@ class MainWindow(QMainWindow):
         # Recent Sessions Header
         recent_label = QLabel("RECENT SESSIONS")
         recent_label.setFont(QFont("JetBrains Mono", 10, QFont.Bold))
-        recent_label.setStyleSheet("color: #55735f; margin-top: 8px; letter-spacing: 0.5px; font-family: 'JetBrains Mono', monospace;")
+        recent_label.setStyleSheet("color: #34d399; margin-top: 8px; letter-spacing: 0.8px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 10px;")
         sidebar_layout.addWidget(recent_label)
 
-        # Sessions List
+        # Sessions List with Context Menu policy
         self.session_list = QListWidget()
+        self.session_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.session_list.customContextMenuRequested.connect(self._on_session_list_custom_context_menu)
         self.session_list.itemClicked.connect(self._on_session_clicked)
         sidebar_layout.addWidget(self.session_list)
 
@@ -409,17 +539,17 @@ class MainWindow(QMainWindow):
 
         top_bar.addStretch()
 
-        # Timer Readout
+        # Timer Readout (High contrast phosphor)
         self.timer_label = QLabel("00:00")
         self.timer_label.setFont(QFont("JetBrains Mono", 13, QFont.Bold))
         self.timer_label.setStyleSheet("""
             QLabel {
-                color: #e0f2e5;
+                color: #34d399;
                 font-family: 'JetBrains Mono', 'Consolas', monospace;
                 font-size: 13px;
-                font-weight: 700;
+                font-weight: 800;
                 background-color: #101612;
-                border: 1px solid #212c25;
+                border: 1px solid #28372e;
                 border-radius: 3px;
                 padding: 4px 10px;
             }
@@ -449,9 +579,9 @@ class MainWindow(QMainWindow):
         # Recording state badge (Monospace instrument panel telemetry)
         self.state_badge = QLabel("READY")
         self.state_badge.setStyleSheet("""
-            background-color: #131915;
-            color: #8fad96;
-            border: 1px solid #212c25;
+            background-color: #141c16;
+            color: #34d399;
+            border: 1px solid #28372e;
             font-family: 'JetBrains Mono', 'Consolas', monospace;
             font-size: 10px;
             font-weight: 700;
@@ -468,9 +598,9 @@ class MainWindow(QMainWindow):
         self.vu_meter.setFixedWidth(120)
         status_row.addWidget(self.vu_meter)
 
-        # Status text
+        # Status text (Bright readable slate)
         self.status_text = QLabel("Press START to begin listening")
-        self.status_text.setStyleSheet("color: #55735f; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px;")
+        self.status_text.setStyleSheet("color: #cbd5e1; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: 500;")
         status_row.addWidget(self.status_text)
 
         status_row.addStretch()
@@ -767,9 +897,9 @@ class MainWindow(QMainWindow):
 
         self.state_badge.setText("READY")
         self.state_badge.setStyleSheet("""
-            background-color: #131915;
-            color: #8fad96;
-            border: 1px solid #212c25;
+            background-color: #141c16;
+            color: #34d399;
+            border: 1px solid #28372e;
             font-family: 'JetBrains Mono', 'Consolas', monospace;
             font-size: 10px;
             font-weight: 700;
@@ -968,13 +1098,131 @@ class MainWindow(QMainWindow):
     def _load_recent_sessions(self):
         self.session_list.clear()
         sessions = self.session_manager.list_sessions()
-        for s in sessions[:20]:
-            mins, secs = divmod(int(s.duration_seconds), 60)
-            hours, mins = divmod(mins, 60)
-            dur_str = f"{hours:02d}:{mins:02d}:{secs:02d}" if hours > 0 else f"{mins:02d}:{secs:02d}"
-            item = QListWidgetItem(f"{s.title}  [{dur_str}]")
+        for s in sessions[:30]:
+            item = QListWidgetItem()
             item.setData(Qt.UserRole, s.id)
+            widget = SessionItemWidget(s)
+            widget.options_clicked.connect(self._show_session_context_menu)
+            item.setSizeHint(widget.sizeHint())
             self.session_list.addItem(item)
+            self.session_list.setItemWidget(item, widget)
+
+    def _on_session_list_custom_context_menu(self, pos):
+        item = self.session_list.itemAt(pos)
+        if item:
+            sess_id = item.data(Qt.UserRole)
+            global_pos = self.session_list.mapToGlobal(pos)
+            self._show_session_context_menu(sess_id, global_pos)
+
+    def _show_session_context_menu(self, session_id: str, global_pos):
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            return
+
+        menu = QMenu(self)
+
+        act_rename = menu.addAction("✏  Rename")
+        act_delete = menu.addAction("🗑  Delete")
+        menu.addSeparator()
+
+        copy_menu = menu.addMenu("📋  Copy")
+        act_copy_plain = copy_menu.addAction("Copy Plain Text")
+        act_copy_md = copy_menu.addAction("Copy Markdown")
+
+        export_menu = menu.addMenu("📥  Export")
+        act_export_md = export_menu.addAction("Export Markdown (.md)...")
+        act_export_txt = export_menu.addAction("Export Plain Text (.txt)...")
+
+        chosen = menu.exec(global_pos)
+        if not chosen:
+            return
+
+        if chosen == act_rename:
+            self._rename_session_dialog(session)
+        elif chosen == act_delete:
+            self._delete_session_dialog(session)
+        elif chosen == act_copy_plain:
+            self._copy_session_plain_text(session)
+        elif chosen == act_copy_md:
+            self._copy_session_markdown(session)
+        elif chosen == act_export_md:
+            self._export_session_file(session, "md")
+        elif chosen == act_export_txt:
+            self._export_session_file(session, "txt")
+
+    def _rename_session_dialog(self, session: SessionMetadata):
+        new_title, ok = QInputDialog.getText(
+            self,
+            "Rename Session",
+            "Enter new title for session:",
+            QLineEdit.Normal,
+            session.title,
+        )
+        if ok and new_title.strip():
+            updated = self.session_manager.rename_session(session.id, new_title.strip())
+            if updated:
+                if self.active_session_id == session.id:
+                    self.title_input.setText(updated.title)
+                self._load_recent_sessions()
+                self.status_text.setText(f"Renamed session to '{updated.title}'")
+
+    def _delete_session_dialog(self, session: SessionMetadata):
+        confirm = QMessageBox.question(
+            self,
+            "Delete Session",
+            f"Are you sure you want to delete session '{session.title}'?\nThis action cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if confirm == QMessageBox.Yes:
+            deleted = self.session_manager.delete_session(session.id)
+            if deleted:
+                if self.active_session_id == session.id:
+                    self._prepare_new_session()
+                self._load_recent_sessions()
+                self.status_text.setText(f"Session '{session.title}' deleted.")
+
+    def _copy_session_plain_text(self, session: SessionMetadata):
+        if session.txt_file and os.path.exists(session.txt_file):
+            try:
+                with open(session.txt_file, "r", encoding="utf-8") as f:
+                    txt = f.read()
+                QGuiApplication.clipboard().setText(txt)
+                self.status_text.setText(f"Plain text copied for '{session.title}'!")
+            except Exception as e:
+                self.status_text.setText(f"Failed to copy: {e}")
+
+    def _copy_session_markdown(self, session: SessionMetadata):
+        if session.markdown_file and os.path.exists(session.markdown_file):
+            try:
+                with open(session.markdown_file, "r", encoding="utf-8") as f:
+                    md = f.read()
+                QGuiApplication.clipboard().setText(md)
+                self.status_text.setText(f"Markdown copied for '{session.title}'!")
+            except Exception as e:
+                self.status_text.setText(f"Failed to copy: {e}")
+
+    def _export_session_file(self, session: SessionMetadata, fmt: str):
+        src_file = session.markdown_file if fmt == "md" else session.txt_file
+        if not src_file or not os.path.exists(src_file):
+            QMessageBox.warning(self, "Export Error", "File not found for this session.")
+            return
+        try:
+            with open(src_file, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            QMessageBox.critical(self, "Read Error", f"Failed to read file: {e}")
+            return
+
+        filter_str = "Markdown Files (*.md)" if fmt == "md" else "Text Files (*.txt)"
+        default_name = f"{session.title}.{fmt}"
+        path, _ = QFileDialog.getSaveFileName(self, f"Export {fmt.upper()}", default_name, filter_str)
+        if path:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                QMessageBox.information(self, "Export Success", f"File exported to:\n{path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Error", f"Failed to save file: {e}")
 
     def _on_session_clicked(self, item: QListWidgetItem):
         sess_id = item.data(Qt.UserRole)
