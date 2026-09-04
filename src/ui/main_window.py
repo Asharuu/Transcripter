@@ -5,8 +5,20 @@ import sys
 import time
 from pathlib import Path
 from datetime import datetime
-from PySide6.QtCore import Qt, QTimer, Signal, Slot, QObject
-from PySide6.QtGui import QFont, QIcon, QAction, QGuiApplication
+from PySide6.QtCore import Qt, QTimer, Signal, Slot, QObject, QRectF, QPointF, QSize
+from PySide6.QtGui import (
+    QFont,
+    QIcon,
+    QAction,
+    QGuiApplication,
+    QKeySequence,
+    QShortcut,
+    QPixmap,
+    QPainter,
+    QColor,
+    QPen,
+    QPainterPath,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -43,6 +55,33 @@ from src.ui.settings_dialog import SettingsDialog
 from src.audio.meeting_detector import MeetingDetector
 from src.ui.meeting_popup import MeetingPopupWidget
 from src.ui.system_tray import TranscripterTrayIcon
+
+
+def create_sidebar_toggle_icon(is_open: bool = True, size: int = 32) -> QIcon:
+    """Creates a crisp Antigravity / VS Code-style primary sidebar layout toggle icon."""
+    pix = QPixmap(size, size)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.Antialiasing, True)
+
+    scale = size / 32.0
+    frame_rect = QRectF(4 * scale, 5 * scale, 24 * scale, 22 * scale)
+    pen = QPen(QColor("#10b981" if is_open else "#8fad96"), 2.0 * scale)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    p.drawRoundedRect(frame_rect, 3.5 * scale, 3.5 * scale)
+
+    split_x = 12.0 * scale
+    p.drawLine(QPointF(split_x, 5 * scale), QPointF(split_x, 27 * scale))
+
+    if is_open:
+        left_pane = QPainterPath()
+        left_pane.addRoundedRect(frame_rect, 3.5 * scale, 3.5 * scale)
+        p.setClipRect(QRectF(4 * scale, 5 * scale, (split_x - 4 * scale), 22 * scale))
+        p.fillPath(left_pane, QColor(16, 185, 129, 180))
+
+    p.end()
+    return QIcon(pix)
 
 
 class WorkerBridge(QObject):
@@ -201,6 +240,10 @@ class MainWindow(QMainWindow):
         self.tray_icon.settings_requested.connect(self._open_settings)
         self.tray_icon.quit_requested.connect(self._quit_application)
         self.tray_icon.show()
+
+        self._prev_sidebar_width = 240
+        self.sidebar_shortcut = QShortcut(QKeySequence("Ctrl+B"), self)
+        self.sidebar_shortcut.activated.connect(self._toggle_sidebar)
 
         self._init_ui()
         self._apply_app_icon()
@@ -438,44 +481,25 @@ class MainWindow(QMainWindow):
         brand_layout.addWidget(brand_label)
         brand_layout.addStretch()
 
-        # Pin / Unpin Button (📌)
-        self.is_sidebar_pinned = True
-        self.btn_pin_sidebar = QPushButton("📌")
-        self.btn_pin_sidebar.setToolTip("Pin / Unpin Sidebar")
-        self.btn_pin_sidebar.setFixedSize(28, 28)
-        self.btn_pin_sidebar.setStyleSheet("""
-            QPushButton {
-                background-color: #0f2619;
-                border: 1px solid #10b981;
-                border-radius: 3px;
-                padding: 0;
-                font-size: 12px;
-                color: #34d399;
-            }
-            QPushButton:hover {
-                background-color: #133322;
-            }
-        """)
-        self.btn_pin_sidebar.clicked.connect(self._toggle_pin_sidebar)
-        brand_layout.addWidget(self.btn_pin_sidebar)
-
-        # Collapse Sidebar Button (◀ / ≡)
-        self.btn_collapse_sidebar = QPushButton("◀")
-        self.btn_collapse_sidebar.setToolTip("Tutup / Collapse Sidebar")
+        # Antigravity-style Sidebar Toggle Button (replaces pin & triangle)
+        self.btn_collapse_sidebar = QPushButton()
+        self.btn_collapse_sidebar.setIcon(create_sidebar_toggle_icon(is_open=True, size=32))
+        self.btn_collapse_sidebar.setIconSize(QSize(18, 18))
+        self.btn_collapse_sidebar.setToolTip("Toggle Primary Side Bar (Ctrl+B)")
         self.btn_collapse_sidebar.setFixedSize(28, 28)
         self.btn_collapse_sidebar.setStyleSheet("""
             QPushButton {
                 background-color: #131915;
                 border: 1px solid #212c25;
-                border-radius: 3px;
+                border-radius: 4px;
                 padding: 0;
-                font-size: 11px;
-                color: #8fad96;
             }
             QPushButton:hover {
                 background-color: #19221c;
                 border-color: #10b981;
-                color: #10b981;
+            }
+            QPushButton:pressed {
+                background-color: #0e1712;
             }
         """)
         self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
@@ -520,22 +544,24 @@ class MainWindow(QMainWindow):
         top_bar = QHBoxLayout()
 
         # Workspace Toggle Sidebar Button (visible when sidebar is closed)
-        self.btn_open_sidebar = QPushButton("☰")
-        self.btn_open_sidebar.setToolTip("Buka / Expand Sidebar")
+        self.btn_open_sidebar = QPushButton()
+        self.btn_open_sidebar.setIcon(create_sidebar_toggle_icon(is_open=False, size=32))
+        self.btn_open_sidebar.setIconSize(QSize(18, 18))
+        self.btn_open_sidebar.setToolTip("Toggle Primary Side Bar (Ctrl+B)")
         self.btn_open_sidebar.setFixedSize(30, 30)
         self.btn_open_sidebar.setStyleSheet("""
             QPushButton {
                 background-color: #131915;
                 border: 1px solid #212c25;
-                border-radius: 3px;
+                border-radius: 4px;
                 padding: 0;
-                font-size: 13px;
-                color: #8fad96;
             }
             QPushButton:hover {
                 background-color: #19221c;
                 border-color: #10b981;
-                color: #10b981;
+            }
+            QPushButton:pressed {
+                background-color: #0e1712;
             }
         """)
         self.btn_open_sidebar.clicked.connect(self._toggle_sidebar)
@@ -647,6 +673,7 @@ class MainWindow(QMainWindow):
 
         self.splitter.addWidget(workspace)
         self.splitter.setSizes([240, 860])
+        self.splitter.splitterMoved.connect(self._on_splitter_moved)
         main_layout.addWidget(self.splitter)
 
     # ----------------- RECORDING WORKFLOW -----------------
@@ -1028,12 +1055,13 @@ class MainWindow(QMainWindow):
     # ----------------- SESSION & EXPORT -----------------
 
     def _toggle_sidebar(self):
-        """Toggle sidebar collapsed or expanded."""
+        """Toggle sidebar collapsed or expanded with Antigravity layout icon updates."""
         sizes = self.splitter.sizes()
         if sizes[0] > 0:
             # Collapse sidebar
             self._prev_sidebar_width = sizes[0]
             self.splitter.setSizes([0, sizes[0] + sizes[1]])
+            self.btn_open_sidebar.setIcon(create_sidebar_toggle_icon(is_open=False, size=32))
             self.btn_open_sidebar.setVisible(True)
         else:
             # Expand sidebar
@@ -1042,45 +1070,19 @@ class MainWindow(QMainWindow):
                 restore_w = 240
             rem = max(100, sizes[1] - restore_w)
             self.splitter.setSizes([restore_w, rem])
+            self.btn_collapse_sidebar.setIcon(create_sidebar_toggle_icon(is_open=True, size=32))
             self.btn_open_sidebar.setVisible(False)
 
-    def _toggle_pin_sidebar(self):
-        """Toggle pinned state of the sidebar."""
-        self.is_sidebar_pinned = not self.is_sidebar_pinned
-        if self.is_sidebar_pinned:
-            self.btn_pin_sidebar.setText("📌")
-            self.btn_pin_sidebar.setStyleSheet("""
-                QPushButton {
-                    background-color: #0f2619;
-                    border: 1px solid #10b981;
-                    border-radius: 3px;
-                    padding: 0;
-                    font-size: 12px;
-                    color: #34d399;
-                }
-                QPushButton:hover {
-                    background-color: #133322;
-                }
-            """)
-            self.btn_pin_sidebar.setToolTip("Sidebar is pinned (Always Open)")
+    def _on_splitter_moved(self, pos: int, index: int):
+        """Update toggle button visibility and icon states when user drags splitter."""
+        sizes = self.splitter.sizes()
+        is_open = sizes[0] > 0
+        self.btn_open_sidebar.setVisible(not is_open)
+        if is_open:
+            self._prev_sidebar_width = sizes[0]
+            self.btn_collapse_sidebar.setIcon(create_sidebar_toggle_icon(is_open=True, size=32))
         else:
-            self.btn_pin_sidebar.setText("📍")
-            self.btn_pin_sidebar.setStyleSheet("""
-                QPushButton {
-                    background-color: #131915;
-                    border: 1px solid #212c25;
-                    border-radius: 3px;
-                    padding: 0;
-                    font-size: 12px;
-                    color: #8fad96;
-                }
-                QPushButton:hover {
-                    background-color: #19221c;
-                    border-color: #10b981;
-                    color: #10b981;
-                }
-            """)
-            self.btn_pin_sidebar.setToolTip("Sidebar is unpinned (Click to pin)")
+            self.btn_open_sidebar.setIcon(create_sidebar_toggle_icon(is_open=False, size=32))
 
     def _update_timer(self):
         current_elapsed = self.session_accumulated_time
@@ -1286,10 +1288,6 @@ class MainWindow(QMainWindow):
                 except Exception as e:
                     self.status_text.setText(f"Error loading transcript: {e}")
 
-                # If sidebar is not pinned, auto-collapse on selection to give full view
-                if not self.is_sidebar_pinned:
-                    self.splitter.setSizes([0, 1000])
-                    self.btn_open_sidebar.setVisible(True)
                 break
 
     def _export_markdown(self):
