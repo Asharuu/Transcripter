@@ -9,14 +9,24 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import ctypes
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QPalette, QColor
+from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 from PySide6.QtWidgets import QApplication
 
 from src.ui.main_window import MainWindow
 
 
 def main():
+    # Set explicit AppUserModelID on Windows for clean taskbar grouping and custom icon
+    if os.name == "nt":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "Asharuu.Transcripter.Desktop.1.0"
+            )
+        except Exception:
+            pass
+
     # Enable high-DPI scaling
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -25,6 +35,11 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Transcripter")
     app.setOrganizationName("Asharuu")
+
+    # Set application icon
+    icon_path = PROJECT_ROOT / "assets" / "icon.png"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     # Set default modern font
     font = QFont("Segoe UI", 10)

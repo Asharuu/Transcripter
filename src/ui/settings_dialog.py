@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from src.core.credentials import CredentialManager
 from src.core.config import AppConfig
+from src.core.shortcut_manager import create_desktop_shortcut
 from src.audio.device_manager import AudioDeviceManager
 
 
@@ -216,6 +217,10 @@ class SettingsDialog(QDialog):
         self.chk_post_process.setStyleSheet("color: #cbd5e1;")
         ai_layout.addRow("", self.chk_post_process)
 
+        self.chk_auto_meeting = QCheckBox("Auto-detect meetings (Google Meet, MS Teams, Zoom)")
+        self.chk_auto_meeting.setStyleSheet("color: #cbd5e1;")
+        ai_layout.addRow("", self.chk_auto_meeting)
+
         self.spin_vad_pause = QDoubleSpinBox()
         self.spin_vad_pause.setRange(0.8, 4.0)
         self.spin_vad_pause.setSingleStep(0.2)
@@ -224,7 +229,22 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(ai_group)
 
-        # 4. BOTTOM ACTION BUTTONS
+        # 4. SYSTEM & DESKTOP INTEGRATION
+        sys_group = QGroupBox("System & Desktop Integration")
+        sys_layout = QHBoxLayout(sys_group)
+        sys_desc = QLabel("Pin or restore launch shortcut on Windows Desktop:")
+        sys_desc.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        sys_layout.addWidget(sys_desc)
+        sys_layout.addStretch()
+
+        self.btn_create_shortcut = QPushButton("🖥 Create Desktop Shortcut")
+        self.btn_create_shortcut.setObjectName("secondaryBtn")
+        self.btn_create_shortcut.clicked.connect(self._create_desktop_shortcut)
+        sys_layout.addWidget(self.btn_create_shortcut)
+
+        layout.addWidget(sys_group)
+
+        # 5. BOTTOM ACTION BUTTONS
         btn_box = QHBoxLayout()
         btn_box.addStretch()
 
@@ -287,6 +307,7 @@ class SettingsDialog(QDialog):
         if model_idx >= 0:
             self.combo_model.setCurrentIndex(model_idx)
         self.chk_post_process.setChecked(self.config.ai_post_processing_enabled)
+        self.chk_auto_meeting.setChecked(self.config.auto_detect_meetings)
         self.spin_vad_pause.setValue(self.config.audio.vad_silence_seconds)
 
     def _test_key(self):
@@ -323,6 +344,13 @@ class SettingsDialog(QDialog):
             self.status_label.setText("⚠ API key removed")
             self.status_label.setStyleSheet("color: #f87171; font-family: 'JetBrains Mono', monospace;")
 
+    def _create_desktop_shortcut(self):
+        ok, msg = create_desktop_shortcut()
+        if ok:
+            QMessageBox.information(self, "Desktop Shortcut", msg)
+        else:
+            QMessageBox.critical(self, "Shortcut Error", msg)
+
     def _save_settings(self):
         # Save API key
         key = self.api_key_input.text().strip()
@@ -336,6 +364,7 @@ class SettingsDialog(QDialog):
         # Save AI settings
         self.config.stt_model = self.combo_model.currentText()
         self.config.ai_post_processing_enabled = self.chk_post_process.isChecked()
+        self.config.auto_detect_meetings = self.chk_auto_meeting.isChecked()
         self.config.audio.vad_silence_seconds = self.spin_vad_pause.value()
 
         self.config.save()

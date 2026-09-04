@@ -54,6 +54,7 @@ class AppConfig:
     # STT & AI Settings
     stt_model: str = "gemini-3.5-flash-lite"
     ai_post_processing_enabled: bool = True
+    auto_detect_meetings: bool = True
 
     # Audio Engine Tuning
     audio: AudioSettings = field(default_factory=AudioSettings)
@@ -68,6 +69,7 @@ class AppConfig:
             "microphone_enabled": self.microphone_enabled,
             "stt_model": self.stt_model,
             "ai_post_processing_enabled": self.ai_post_processing_enabled,
+            "auto_detect_meetings": self.auto_detect_meetings,
             "audio": {
                 "sample_rate": self.audio.sample_rate,
                 "chunk_ms": self.audio.chunk_ms,
@@ -110,6 +112,7 @@ class AppConfig:
                 microphone_enabled=data.get("microphone_enabled", True),
                 stt_model=raw_model,
                 ai_post_processing_enabled=data.get("ai_post_processing_enabled", True),
+                auto_detect_meetings=data.get("auto_detect_meetings", True),
                 audio=audio_settings
             )
         except Exception:

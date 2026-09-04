@@ -38,6 +38,8 @@ from src.stt.gemini_stt import GeminiSTTEngine
 from src.stt.post_processor import ConservativePostProcessor
 from src.ui.transcript_widget import TranscriptViewWidget
 from src.ui.settings_dialog import SettingsDialog
+from src.audio.meeting_detector import MeetingDetector
+from src.ui.meeting_popup import MeetingPopupWidget
 
 
 class WorkerBridge(QObject):
@@ -182,9 +184,19 @@ class MainWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_timer)
 
+        # Smart Meeting Detector & Floating Notification Popup
+        self.meeting_detector = MeetingDetector(self)
+        self.meeting_popup = MeetingPopupWidget()
+        self.meeting_detector.meeting_detected.connect(self._on_meeting_detected)
+        self.meeting_popup.start_requested.connect(self._on_popup_start_requested)
+        self.meeting_popup.dismissed.connect(self._on_popup_dismissed)
+
         self._init_ui()
         self._load_recent_sessions()
         self._check_api_key_status()
+
+        if self.config.auto_detect_meetings:
+            self.meeting_detector.start(2000)
 
     def _init_ui(self):
         self.setStyleSheet("""
@@ -690,6 +702,7 @@ class MainWindow(QMainWindow):
         self.system_segmenter.reset()
         self.is_recording = True
         self.is_paused = False
+        self.meeting_detector.set_recording_active(True)
         self.session_accumulated_time = 0.0
         self.session_start_time = time.time()
         self.session_duration = 0.0
@@ -723,6 +736,7 @@ class MainWindow(QMainWindow):
 
         self.is_recording = False
         self.is_paused = True
+        self.meeting_detector.set_recording_active(True)
         self.timer.stop()
         self.audio_engine.stop()
 
@@ -812,6 +826,7 @@ class MainWindow(QMainWindow):
         self.system_segmenter.reset()
         self.is_recording = True
         self.is_paused = False
+        self.meeting_detector.set_recording_active(True)
         self.session_start_time = time.time()  # Start of new interval
 
         # UI updates for RECORDING state
@@ -861,6 +876,7 @@ class MainWindow(QMainWindow):
 
         self.is_recording = False
         self.is_paused = False
+        self.meeting_detector.set_recording_active(False)
 
         # Finalize turn
         self.turn_manager.finalize_active_turn()
@@ -877,6 +893,7 @@ class MainWindow(QMainWindow):
         """Resets workspace and prepares a clean, new recording session."""
         self.is_recording = False
         self.is_paused = False
+        self.meeting_detector.set_recording_active(False)
         self.session_start_time = 0.0
         self.session_accumulated_time = 0.0
         self.session_duration = 0.0
@@ -1326,6 +1343,50 @@ class MainWindow(QMainWindow):
         self.system_segmenter.silence_threshold_sec = self.config.audio.vad_silence_seconds
         self._check_api_key_status()
 
+        if self.config.auto_detect_meetings:
+            self.meeting_detector.set_enabled(True)
+            self.meeting_detector.start(2000)
+        else:
+            self.meeting_detector.set_enabled(False)
+            self.meeting_detector.stop()
+            self.meeting_popup.hide()
+
+    def _on_meeting_detected(self, app_type: str, meeting_title: str):
+        if not self.config.auto_detect_meetings or self.is_recording or self.is_paused:
+            return
+        self.meeting_popup.show_meeting(app_type, meeting_title)
+
+    def _on_popup_dismissed(self, app_type: str, meeting_title: str):
+        self.meeting_detector.dismiss_meeting(app_type, meeting_title)
+
+    def _on_popup_start_requested(self, app_type: str, meeting_title: str):
+        self.meeting_detector.mark_meeting_recorded(app_type, meeting_title)
+
+        # If previous session has turns and we're not actively recording, end & save it cleanly
+        if self.turn_manager.turns and not self.is_recording:
+            self._end_session()
+
+        # Set meeting title
+        session_title = f"{app_type}: {meeting_title}"
+        self.title_input.setText(session_title)
+
+        # Restore window if minimized
+        if self.isMinimized():
+            self.showNormal()
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+        # Start recording immediately
+        self._start_recording()
+
     def _check_api_key_status(self):
         if not CredentialManager.has_api_key():
             self.status_text.setText("⚠ Gemini API key not configured. Click Settings to enter key.")
+
+    def closeEvent(self, event):
+        self.meeting_detector.stop()
+        self.meeting_popup.close()
+        if self.is_recording:
+            self._end_session()
+        event.accept()
