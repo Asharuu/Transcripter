@@ -1449,12 +1449,90 @@ class MainWindow(QMainWindow):
             icon = QIcon(str(target_icon))
             self.setWindowIcon(icon)
 
-            # On Windows, explicitly send WM_SETICON to HWND for the taskbar & Alt-Tab
+            # On Windows, explicitly set AppUserModelID on HWND and send WM_SETICON with 64-bit types
             if os.name == "nt" and ico_path.exists():
                 try:
                     import ctypes
-                    user32 = ctypes.windll.user32
+                    import uuid
+
                     hwnd = int(self.winId())
+                    shell32 = ctypes.windll.shell32
+                    user32 = ctypes.windll.user32
+
+                    # 1. Set PKEY_AppUserModel_ID on window HWND via SHGetPropertyStoreForWindow
+                    try:
+                        class PROPERTYKEY(ctypes.Structure):
+                            _fields_ = [
+                                ("fmtid", ctypes.c_ubyte * 16),
+                                ("pid", ctypes.c_ulong),
+                            ]
+
+                        class PROPVARIANT(ctypes.Structure):
+                            _fields_ = [
+                                ("vt", ctypes.c_ushort),
+                                ("wReserved1", ctypes.c_ushort),
+                                ("wReserved2", ctypes.c_ushort),
+                                ("wReserved3", ctypes.c_ushort),
+                                ("pwszVal", ctypes.c_wchar_p),
+                                ("dummy", ctypes.c_ulonglong),
+                            ]
+
+                        guid_bytes = uuid.UUID("{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}").bytes_le
+                        pkey = PROPERTYKEY((ctypes.c_ubyte * 16)(*guid_bytes), 5)
+                        iid_bytes = uuid.UUID("{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}").bytes_le
+
+                        SHGetPropertyStoreForWindow = shell32.SHGetPropertyStoreForWindow
+                        SHGetPropertyStoreForWindow.restype = ctypes.HRESULT
+                        SHGetPropertyStoreForWindow.argtypes = [
+                            ctypes.c_void_p,
+                            ctypes.c_char_p,
+                            ctypes.POINTER(ctypes.c_void_p),
+                        ]
+
+                        p_store = ctypes.c_void_p()
+                        hr = SHGetPropertyStoreForWindow(hwnd, bytes(iid_bytes), ctypes.byref(p_store))
+                        if hr == 0 and p_store.value:
+                            vtable = ctypes.cast(
+                                ctypes.cast(p_store, ctypes.POINTER(ctypes.c_void_p)).contents,
+                                ctypes.POINTER(ctypes.c_void_p),
+                            )
+                            SetValueProto = ctypes.WINFUNCTYPE(
+                                ctypes.HRESULT,
+                                ctypes.c_void_p,
+                                ctypes.POINTER(PROPERTYKEY),
+                                ctypes.POINTER(PROPVARIANT),
+                            )
+                            SetValue = SetValueProto(vtable[6])
+
+                            pv = PROPVARIANT()
+                            pv.vt = 31  # VT_LPWSTR
+                            pv.pwszVal = "Asharuu.Transcripter.Desktop.1.0"
+                            SetValue(p_store, ctypes.byref(pkey), ctypes.byref(pv))
+
+                            CommitProto = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p)
+                            Commit = CommitProto(vtable[7])
+                            Commit(p_store)
+                    except Exception:
+                        pass
+
+                    # 2. Configure 64-bit prototypes for LoadImageW and SendMessageW
+                    user32.LoadImageW.restype = ctypes.c_void_p
+                    user32.LoadImageW.argtypes = [
+                        ctypes.c_void_p,
+                        ctypes.c_wchar_p,
+                        ctypes.c_uint,
+                        ctypes.c_int,
+                        ctypes.c_int,
+                        ctypes.c_uint,
+                    ]
+                    user32.SendMessageW.restype = ctypes.c_void_p
+                    user32.SendMessageW.argtypes = [
+                        ctypes.c_void_p,
+                        ctypes.c_uint,
+                        ctypes.c_void_p,
+                        ctypes.c_void_p,
+                    ]
+
                     WM_SETICON = 0x0080
                     ICON_SMALL = 0
                     ICON_BIG = 1

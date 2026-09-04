@@ -96,6 +96,45 @@ class Program
             "Transcripter - Real-time AI Audio and Meeting Transcription",
             APP_ID
         );
+
+        RegisterAppUserModelId(iconPath);
+    }
+
+    [DllImport("shell32.dll")]
+    static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+    private static void RegisterAppUserModelId(string iconPath)
+    {
+        try
+        {
+            using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\AppUserModelId\" + APP_ID))
+            {
+                if (key != null)
+                {
+                    key.SetValue("DisplayName", "Transcripter");
+                    key.SetValue("IconUri", iconPath);
+                    key.SetValue("IconBackgroundColor", "0");
+                }
+            }
+
+            using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\Applications\Transcripter.exe"))
+            {
+                if (key != null)
+                {
+                    key.SetValue("FriendlyAppName", "Transcripter");
+                    using (Microsoft.Win32.RegistryKey iconKey = key.CreateSubKey("DefaultIcon"))
+                    {
+                        if (iconKey != null)
+                        {
+                            iconKey.SetValue("", iconPath + ",0");
+                        }
+                    }
+                }
+            }
+
+            SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
+        }
+        catch { }
     }
 
     private static void CreateShortcut(string shortcutPath, string targetPath, string arguments, string workingDir, string iconPath, string description, string appId)

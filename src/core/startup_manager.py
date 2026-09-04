@@ -29,12 +29,46 @@ def get_project_paths() -> tuple[Path, Path, Path]:
     return project_root, pythonw_path, icon_path
 
 
+def register_app_user_model_id() -> bool:
+    """Registers AppUserModelID and icon associations in HKCU Software\\Classes."""
+    if os.name != "nt":
+        return False
+
+    try:
+        project_root, _, icon_path = get_project_paths()
+        app_id = "Asharuu.Transcripter.Desktop.1.0"
+        icon_str = str(icon_path.resolve())
+
+        # Register AUMID for taskbar & notification branding
+        key_path = rf"Software\Classes\AppUserModelId\{app_id}"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as k:
+            winreg.SetValueEx(k, "DisplayName", 0, winreg.REG_SZ, "Transcripter")
+            winreg.SetValueEx(k, "IconUri", 0, winreg.REG_SZ, icon_str)
+            winreg.SetValueEx(k, "IconBackgroundColor", 0, winreg.REG_SZ, "0")
+
+        # Register application DefaultIcon
+        app_key = r"Software\Classes\Applications\Transcripter.exe"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, app_key) as k:
+            winreg.SetValueEx(k, "FriendlyAppName", 0, winreg.REG_SZ, "Transcripter")
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, app_key + r"\DefaultIcon") as k:
+            winreg.SetValue(k, "", winreg.REG_SZ, f"{icon_str},0")
+
+        # Broadcast shell change
+        import ctypes
+        shell32 = ctypes.windll.shell32
+        shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
+        return True
+    except Exception:
+        return False
+
+
 def install_start_menu_shortcut() -> tuple[bool, str]:
     """Installs Transcripter shortcut in Start Menu Programs so Windows Settings resolves its icon and metadata."""
     if os.name != "nt":
         return False, "Not running on Windows"
 
     try:
+        register_app_user_model_id()
         project_root, pythonw_path, icon_path = get_project_paths()
         exe_path = project_root / "Transcripter.exe"
 
