@@ -36,8 +36,10 @@ def main():
     app.setApplicationName("Transcripter")
     app.setOrganizationName("Asharuu")
 
-    # Set application icon
-    icon_path = PROJECT_ROOT / "assets" / "icon.png"
+    # Set application icon (prefers multi-resolution ICO on Windows)
+    ico_path = PROJECT_ROOT / "assets" / "icon.ico"
+    png_path = PROJECT_ROOT / "assets" / "icon.png"
+    icon_path = ico_path if ico_path.exists() else png_path
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 

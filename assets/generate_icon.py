@@ -153,6 +153,38 @@ def generate_icon(size: int = 256) -> QImage:
     return image
 
 
+def save_multi_res_ico(ico_path: Path):
+    """Saves a proper Windows multi-resolution ICO file with 16, 24, 32, 48, 64, 128, and 256px frames."""
+    import struct
+    from PySide6.QtCore import QBuffer, QIODevice
+
+    sizes = [16, 24, 32, 48, 64, 128, 256]
+    images_data = []
+
+    for s in sizes:
+        img = generate_icon(s)
+        buf = QBuffer()
+        buf.open(QIODevice.WriteOnly)
+        img.save(buf, "PNG")
+        images_data.append((s, bytes(buf.data())))
+
+    # ICO Header: Reserved (0), Type (1 = Icon), Count
+    header = struct.pack("<HHH", 0, 1, len(images_data))
+    offset = 6 + len(images_data) * 16
+
+    entries = []
+    for s, data in images_data:
+        w = 0 if s == 256 else s
+        h = 0 if s == 256 else s
+        entry = struct.pack("<BBBBHHII", w, h, 0, 0, 1, 32, len(data), offset)
+        entries.append(entry)
+        offset += len(data)
+
+    ico_bytes = header + b"".join(entries) + b"".join(d for _, d in images_data)
+    with open(ico_path, "wb") as f:
+        f.write(ico_bytes)
+
+
 def main():
     app = QApplication(sys.argv)
     assets_dir = Path(__file__).resolve().parent
@@ -165,9 +197,9 @@ def main():
     img_256.save(str(png_path), "PNG")
     print(f"Saved PNG icon: {png_path}")
 
-    # For ICO, save the 256x256 image
-    img_256.save(str(ico_path), "ICO")
-    print(f"Saved ICO icon: {ico_path}")
+    # Save multi-resolution ICO
+    save_multi_res_ico(ico_path)
+    print(f"Saved Multi-resolution ICO icon: {ico_path}")
 
 
 if __name__ == "__main__":

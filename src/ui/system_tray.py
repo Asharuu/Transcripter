@@ -22,7 +22,9 @@ class TranscripterTrayIcon(QSystemTrayIcon):
 
     def _init_icon(self):
         project_root = Path(__file__).resolve().parent.parent.parent
-        icon_path = project_root / "assets" / "icon.png"
+        ico_path = project_root / "assets" / "icon.ico"
+        png_path = project_root / "assets" / "icon.png"
+        icon_path = ico_path if ico_path.exists() else png_path
         if icon_path.exists():
             self.setIcon(QIcon(str(icon_path)))
         self.setToolTip("Transcripter — Meeting Detector Active")

@@ -3,10 +3,12 @@
 import os
 import sys
 import time
+from pathlib import Path
 from datetime import datetime
 from PySide6.QtCore import Qt, QTimer, Signal, Slot, QObject
 from PySide6.QtGui import QFont, QIcon, QAction, QGuiApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QWidget,
     QVBoxLayout,
@@ -201,6 +203,7 @@ class MainWindow(QMainWindow):
         self.tray_icon.show()
 
         self._init_ui()
+        self._apply_app_icon()
         self._load_recent_sessions()
         self._check_api_key_status()
 
@@ -1429,3 +1432,41 @@ class MainWindow(QMainWindow):
         else:
             self._quit_application()
             event.accept()
+
+    def showEvent(self, event):
+        """Ensures taskbar and window icons are enforced upon display."""
+        super().showEvent(event)
+        self._apply_app_icon()
+
+    def _apply_app_icon(self):
+        """Enforces multi-resolution custom icon on window and Win32 HWND for the taskbar."""
+        project_root = Path(__file__).resolve().parent.parent.parent
+        ico_path = project_root / "assets" / "icon.ico"
+        png_path = project_root / "assets" / "icon.png"
+
+        target_icon = ico_path if ico_path.exists() else png_path
+        if target_icon.exists():
+            icon = QIcon(str(target_icon))
+            self.setWindowIcon(icon)
+
+            # On Windows, explicitly send WM_SETICON to HWND for the taskbar & Alt-Tab
+            if os.name == "nt" and ico_path.exists():
+                try:
+                    import ctypes
+                    user32 = ctypes.windll.user32
+                    hwnd = int(self.winId())
+                    WM_SETICON = 0x0080
+                    ICON_SMALL = 0
+                    ICON_BIG = 1
+                    IMAGE_ICON = 1
+                    LR_LOADFROMFILE = 0x0010
+
+                    hicon_small = user32.LoadImageW(None, str(ico_path), IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
+                    hicon_big = user32.LoadImageW(None, str(ico_path), IMAGE_ICON, 48, 48, LR_LOADFROMFILE)
+
+                    if hicon_small:
+                        user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon_small)
+                    if hicon_big:
+                        user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon_big)
+                except Exception:
+                    pass
