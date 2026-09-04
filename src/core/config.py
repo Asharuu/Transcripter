@@ -52,7 +52,7 @@ class AppConfig:
     microphone_enabled: bool = True
 
     # STT & AI Settings
-    stt_model: str = "gemini-3.5-flash"
+    stt_model: str = "gemini-3.5-flash-lite"
     ai_post_processing_enabled: bool = True
 
     # Audio Engine Tuning
@@ -98,10 +98,10 @@ class AppConfig:
                 max_segment_seconds=audio_data.get("max_segment_seconds", 25.0),
                 speaker_turn_timeout=audio_data.get("speaker_turn_timeout", 7.0),
             )
-            raw_model = data.get("stt_model", "gemini-3.5-flash")
-            # Upgrade deprecated 2.5/2.0/1.5 models automatically to gemini-3.5-flash
-            if any(old in raw_model for old in ["2.5", "2.0", "1.5"]):
-                raw_model = "gemini-3.5-flash"
+            raw_model = data.get("stt_model", "gemini-3.5-flash-lite")
+            # Upgrade deprecated or rate-limited models automatically to gemini-3.5-flash-lite
+            if any(old in raw_model for old in ["2.5", "2.0", "1.5"]) or raw_model == "gemini-3.5-flash":
+                raw_model = "gemini-3.5-flash-lite"
 
             return cls(
                 system_audio_device_index=data.get("system_audio_device_index"),

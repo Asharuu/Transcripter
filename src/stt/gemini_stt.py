@@ -38,7 +38,7 @@ def pcm_to_wav_bytes(pcm_data: bytes, sample_rate: int = 16000) -> bytes:
 class GeminiSTTEngine(BaseSTTEngine):
     """Speech-to-Text engine powered by Google Gemini multimodal audio."""
 
-    def __init__(self, model_name: str = "gemini-3.5-flash"):
+    def __init__(self, model_name: str = "gemini-3.5-flash-lite"):
         self.model_name = model_name
         self._client: genai.Client | None = None
 

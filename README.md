@@ -39,7 +39,7 @@ A lightweight, modern Windows desktop application for real-time audio transcript
                  │                                         │
                  └───────────────────┬─────────────────────┘
                                      │
-                        [Google Gemini Flash STT]
+                    [Google Gemini 3.5 Flash Lite STT]
                                      │
                     [Conservative AI Post-Processor]
                                      │

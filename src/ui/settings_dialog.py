@@ -158,7 +158,7 @@ class SettingsDialog(QDialog):
         ai_layout = QFormLayout(ai_group)
 
         self.combo_model = QComboBox()
-        self.combo_model.addItems(["gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest"])
+        self.combo_model.addItems(["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest"])
         ai_layout.addRow("STT Model:", self.combo_model)
 
         self.chk_post_process = QCheckBox("Enable Conservative AI Post-Processing (Punctuation & Typos)")

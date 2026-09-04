@@ -74,7 +74,7 @@ class CredentialManager:
             from google import genai
             client = genai.Client(api_key=clean_key)
             # Lightweight test call to verify permissions
-            client.models.get(model="gemini-3.5-flash")
+            client.models.get(model="gemini-3.5-flash-lite")
             return True, "API key valid and connection successful."
         except Exception as e:
             err_msg = str(e)
